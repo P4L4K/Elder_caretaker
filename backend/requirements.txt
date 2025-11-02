@@ -1,0 +1,16 @@
+numpy
+pandas
+tensorflow
+tensorflow-hub
+librosa
+soundfile
+joblib
+fastapi
+sqlalchemy
+python-jose[cryptography]
+pydantic[email]
+psycopg2-binary
+python-multipart
+uvicorn
+fastapi-mail 
+python-dotenv

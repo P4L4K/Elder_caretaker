@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareTaker - Register</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <h2>Register as CareTaker</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="full_name">Full Name</label>
+                    <input type="text" id="full_name" name="full_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone_number">Phone Number</label>
+                    <input type="tel" id="phone_number" name="phone_number" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div id="careRecipients">
+                    <h3>Care Recipient Details</h3>
+                    <div class="care-recipient">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" name="recipient_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" name="recipient_email">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="tel" name="recipient_phone">
+                        </div>
+                        <div class="form-group">
+                            <label>Age</label>
+                            <input type="number" name="recipient_age" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select name="recipient_gender" required>
+                                <option value="">Select gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Respiratory Condition Status</label>
+                            <select name="recipient_condition" required>
+                                <option value="">Select condition</option>
+                                <option value="false">Normal</option>
+                                <option value="true">Has Respiratory Issues</option>
+                            </select>
+                        </div>
+                        <button type="button" class="remove-recipient" style="display: none;">&times;</button>
+                    </div>
+                </div>
+                
+                <button type="button" id="addRecipient">Add Another Care Recipient</button>
+                <button type="submit">Register</button>
+            </form>
+            <p class="form-footer">
+                Already have an account? <a href="index.html">Login here</a>
+            </p>
+        </div>
+    </div>
+    <script src="js/register.js"></script>
+</body>
+</html>
