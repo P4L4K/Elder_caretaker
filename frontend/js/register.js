@@ -1,45 +1,60 @@
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    alert('Registering... Please wait.');
     e.preventDefault();
     
-    // Get main caretaker details
-    const formData = {
-        full_name: document.getElementById('full_name').value,
-        email: document.getElementById('email').value,
-        username: document.getElementById('username').value,
-        phone_number: document.getElementById('phone_number').value,
-        password: document.getElementById('password').value,
-        care_recipients: []
-    };
-
-    // Get care recipients details
-    const recipientDivs = document.querySelectorAll('.care-recipient');
-    recipientDivs.forEach(div => {
-        const genderSelect = div.querySelector('[name="recipient_gender"]');
-        const gender = genderSelect.value;
-        
-        if (!gender) {
-            throw new Error('Please select a gender for all care recipients');
-        }
-
-        const recipient = {
-            full_name: div.querySelector('[name="recipient_name"]').value,
-            email: div.querySelector('[name="recipient_email"]').value,
-            phone_number: div.querySelector('[name="recipient_phone"]').value,
-            age: parseInt(div.querySelector('[name="recipient_age"]').value),
-            gender: gender, // This will now be "Male", "Female", or "Other"
-            respiratory_condition_status: div.querySelector('[name="recipient_condition"]').value === 'true'
+    try {
+        // Get main caretaker details
+        const formData = {
+            full_name: document.getElementById('full_name').value,
+            email: document.getElementById('email').value,
+            username: document.getElementById('username').value,
+            phone_number: document.getElementById('phone_number').value,
+            password: document.getElementById('password').value,
+            care_recipients: []
         };
 
-        // Validate the data
-        if (!recipient.full_name) throw new Error('Full name is required for all care recipients');
-        if (!recipient.email) throw new Error('Email is required for all care recipients');
-        if (!recipient.phone_number || recipient.phone_number.length !== 10) throw new Error('Valid 10-digit phone number is required for all care recipients');
-        if (!recipient.age || isNaN(recipient.age)) throw new Error('Valid age is required for all care recipients');
-        
-        formData.care_recipients.push(recipient);
-    });
+        // Validate main caretaker details
+        if (!formData.full_name || !formData.email || !formData.username || !formData.phone_number || !formData.password) {
+            throw new Error('Please fill out all the main caretaker fields.');
+        }
 
-    try {
+        const recipientDivs = document.querySelectorAll('.care-recipient');
+        let validationError = null;
+        recipientDivs.forEach(div => {
+            if (validationError) return; // Stop processing if an error has been found
+
+            const genderSelect = div.querySelector('[name="recipient_gender"]');
+            const gender = genderSelect.value;
+            
+            if (!gender) {
+                validationError = 'Please select a gender for all care recipients';
+                return;
+            }
+
+            const recipient = {
+                full_name: div.querySelector('[name="recipient_name"]').value,
+                email: div.querySelector('[name="recipient_email"]').value,
+                phone_number: div.querySelector('[name="recipient_phone"]').value,
+                age: parseInt(div.querySelector('[name="recipient_age"]').value),
+                gender: gender,
+                respiratory_condition_status: div.querySelector('[name="recipient_condition"]').value === 'true'
+            };
+
+            // Validate the data
+            if (!recipient.full_name) validationError = 'Full name is required for all care recipients';
+            else if (!recipient.email) validationError = 'Email is required for all care recipients';
+            else if (!recipient.phone_number || recipient.phone_number.length !== 10) validationError = 'Valid 10-digit phone number is required for all care recipients';
+            else if (!recipient.age || isNaN(recipient.age)) validationError = 'Valid age is required for all care recipients';
+            
+            if (validationError) return;
+
+            formData.care_recipients.push(recipient);
+        });
+
+        if (validationError) {
+            throw new Error(validationError);
+        }
+
         console.log('Sending registration data:', formData);
         const response = await fetch('http://localhost:8000/signup', {
             method: 'POST',
@@ -53,13 +68,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         const responseData = await response.json();
         console.log('Registration response data:', responseData);
 
-        const data = await response.json();
-
         if (response.ok) {
             alert('Registration successful! Please check your email for confirmation.');
             window.location.href = 'index.html';
         } else {
-            alert(data.detail || 'Registration failed. Please try again.');
+            alert(responseData.detail || 'Registration failed. Please try again.');
         }
     } catch (error) {
         console.error('Error details:', error);
