@@ -6,6 +6,7 @@ from models.users import ResponseSchema, Register, Login
 from tables.users import CareTaker, CareRecipient
 from config import get_db, ACCESS_TOKEN_EXPIRE_MINUTES
 from repository.users import UsersRepo, JWTRepo
+from utils.email import send_registration_email
 
 router = APIRouter(tags=['Authentication'])
 
@@ -47,6 +48,9 @@ async def signup(request: Register, db: Session = Depends(get_db)):
             db.add(new_recipient)
 
         db.commit()
+
+        # Send registration email
+        await send_registration_email(request.email, request.username)
 
         # Generate JWT token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
