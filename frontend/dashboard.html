@@ -1,16 +1,552 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>Audio Cough Detection - Dashboard</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        :root{
+            --bg:#0f1720; --card:#0b1220; --muted:#9aa6b2; --accent:#3ba9ff; --danger:#ff5252; --surface:#0b1220;
+        }
+        body{background:var(--bg);color:#e6eef6;font-family:Inter,Arial,Helvetica,sans-serif;margin:0}
+        .container{max-width:1200px;margin:18px auto;padding:18px}
+        .dashboard-grid{display:grid;grid-template-columns:300px 1fr;gap:20px}
+        .sidebar .profile-card{background:var(--card);padding:16px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+        .profile-header{display:flex;justify-content:space-between;align-items:center}
+        .profile-header h3{margin:0;font-size:18px}
+        .muted{color:var(--muted);margin:6px 0}
+        .recipients-list{margin-top:8px}
+        .recipient-card{background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;margin-bottom:8px}
+        .recipient-name{font-weight:600}
+        .recipient-meta{color:var(--muted);font-size:13px}
+
+        .mainpanel .panel{background:var(--surface);padding:16px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+        .panel-header{display:flex;justify-content:space-between;align-items:center}
+        .monitor-controls{display:flex;align-items:center;gap:12px;margin-top:12px}
+        .primary{background:var(--accent);color:white;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer}
+        .status{color:var(--muted);font-weight:600}
+        .monitor-body{display:flex;gap:14px;margin-top:16px}
+        .left{flex:1}
+        .right{width:320px}
+        .waveform{background:#071019;padding:8px;border-radius:6px}
+        .recordings-list{display:flex;flex-direction:column;gap:8px}
+        button{cursor:pointer}
+        a.logout{color:var(--danger);text-decoration:none}
+    </style>
 </head>
+
 <body>
-    <div class="container">
-        <h2>Welcome to your Dashboard</h2>
-        <p>You have successfully logged in.</p>
-        <a href="index.html">Logout</a>
+    <div class="container dashboard-grid">
+        <aside class="sidebar" aria-label="Profile">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <h3 id="caretakerName">—</h3>
+                    <a href="index.html" class="logout">Logout</a>
+                </div>
+                <div id="caretakerInfo" class="profile-info">
+                    <p id="caretakerEmail" class="muted">&nbsp;</p>
+                    <p id="caretakerPhone" class="muted">&nbsp;</p>
+                </div>
+                <hr>
+                <h4>Care Recipients</h4>
+                <div id="recipientsList" class="recipients-list">
+                    <p class="muted">No recipients found.</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="mainpanel" role="main">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Audio Monitoring</h2>
+                    <p id="welcomeMsg" class="muted">Loading...</p>
+                </div>
+
+                <div class="monitor-controls">
+                    <button id="startBtn" class="primary">Start Listening</button>
+                    <div id="status" class="status">Status: Not listening</div>
+                </div>
+
+                <div class="monitor-body">
+                    <div class="left">
+                        <div class="cough-counter">Coughs detected: <span id="coughCount">0</span></div>
+                        <div id="label-container" class="labels"></div>
+                        <div class="waveform">
+                            <canvas id="waveCanvas" width="760" height="180"></canvas>
+                        </div>
+                    </div>
+                    <div class="right">
+                        <h3 id="recordings-title" style="display: none;">Saved Cough Recordings</h3>
+                        <div id="recordings-container" class="recordings-list"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+<script>
+// Ensure user is logged in
+const token = localStorage.getItem('token');
+if (!token) {
+    window.location.href = 'index.html';
+}
+
+document.getElementById('welcomeMsg').textContent = 'Logged in - audio monitoring ready.';
+// On load, fetch profile and server-side recordings for this user
+fetchProfile().catch(err => console.warn('Could not fetch profile on load', err));
+fetchAndRenderRecordings().catch(err => console.warn('Could not fetch recordings on load', err));
+
+// --- Start of merged audio UI (adapted from project root) ---
+let audioContext, analyser, dataArray;
+let coughLabel = "COUGH";
+let coughCount = 0;
+let recognitionActive = false;
+let audioStream = null;
+let processorNode = null;
+let silentGainNode = null;
+let pcmBuffer = [];
+let pcmBufferLength = 0;
+const PCM_BUFFER_SECONDS = 6;
+const MIN_RECORDING_DURATION = 4000;
+let coughDetectionActive = false;
+let coughStartTime = null;
+let coughRecordingTimeout = null;
+
+    const AUTO_DOWNLOAD = false; // set false to avoid saving to user's Downloads
+    const startBtn = document.getElementById("startBtn");
+startBtn.addEventListener("click", toggleRecording);
+
+async function toggleRecording() {
+    if (!recognitionActive) {
+        await init();
+        startBtn.textContent = 'Stop Listening';
+        recognitionActive = true;
+    } else {
+        stopRecording();
+        startBtn.textContent = 'Start Listening';
+        recognitionActive = false;
+    }
+}
+
+async function init() {
+        // Load model files from backend server where they are mounted at /model
+        const MODEL_BASE = 'http://127.0.0.1:8000/model';
+        const recognizer = speechCommands.create(
+            "BROWSER_FFT",
+            undefined,
+            MODEL_BASE + "/model.json",
+            MODEL_BASE + "/metadata.json"
+        );
+
+    try {
+        await recognizer.ensureModelLoaded();
+        document.getElementById('status').textContent = 'Status: Ready - Listening for coughs...';
+        const labels = recognizer.wordLabels();
+        const container = document.getElementById("label-container");
+        container.innerHTML = "";
+        labels.forEach(() => container.appendChild(document.createElement("div")));
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } });
+        const source = audioContext.createMediaStreamSource(audioStream);
+        startContinuousRecording(source);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        let bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        source.connect(analyser);
+        drawWaveform();
+
+        let coughScoreThreshold = 0.65;
+
+        recognizer.listen(
+            result => {
+                const scores = result.scores;
+                scores.forEach((score, i) => {
+                    if (container.childNodes[i]) {
+                        container.childNodes[i].textContent = `${labels[i]}: ${score.toFixed(2)}`;
+                    }
+                });
+
+                const coughIndex = labels.indexOf(coughLabel);
+                const coughScore = coughIndex >= 0 ? scores[coughIndex] : 0;
+                const statusEl = document.getElementById('status');
+                if (!coughDetectionActive) {
+                    statusEl.innerHTML = `Listening... (Cough: ${coughScore.toFixed(2)})`;
+                    statusEl.style.color = '#42a5f5';
+                }
+
+                if (coughScore >= coughScoreThreshold) {
+                    if (!coughDetectionActive) {
+                        coughDetectionActive = true;
+                        coughStartTime = Date.now();
+                        coughCount++;
+                        document.getElementById('coughCount').textContent = coughCount;
+                        statusEl.textContent = `🚨 Cough #${coughCount} detected! (${coughScore.toFixed(2)}) - Recording...`;
+                        statusEl.style.color = '#ff5252';
+                        if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+                        coughRecordingTimeout = setTimeout(() => { saveCoughRecording(); }, MIN_RECORDING_DURATION);
+                    } else {
+                        const elapsedTime = Date.now() - coughStartTime;
+                        if (elapsedTime < MIN_RECORDING_DURATION) {
+                            if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+                            coughRecordingTimeout = setTimeout(() => { saveCoughRecording(); }, MIN_RECORDING_DURATION - elapsedTime);
+                        }
+                    }
+                }
+            },
+            { includeSpectrogram: true, overlapFactor: 0.5, invokeCallbackOnNoiseAndUnknown: true, probabilityThreshold: 0.5 }
+        );
+        document.getElementById('status').textContent = 'Listening for coughs...';
+    } catch (err) {
+        console.error('Error init audio:', err);
+        document.getElementById('status').textContent = `Error: ${err.message}`;
+        document.getElementById('status').style.color = '#ff5252';
+    }
+}
+
+function startContinuousRecording(source) {
+    pcmBuffer = [];
+    pcmBufferLength = 0;
+    const bufferSize = 4096;
+    const channelCount = source.channelCount || 1;
+    const maxSamples = audioContext.sampleRate * PCM_BUFFER_SECONDS;
+
+    processorNode = audioContext.createScriptProcessor(bufferSize, channelCount, channelCount);
+    processorNode.onaudioprocess = (event) => {
+        const inputBuffer = event.inputBuffer;
+        const chunkChannels = [];
+        for (let ch = 0; ch < inputBuffer.numberOfChannels; ch++) {
+            const channelData = new Float32Array(inputBuffer.length);
+            channelData.set(inputBuffer.getChannelData(ch));
+            chunkChannels.push(channelData);
+        }
+        pcmBuffer.push({ channels: chunkChannels, length: inputBuffer.length });
+        pcmBufferLength += inputBuffer.length;
+
+        while (pcmBufferLength > maxSamples && pcmBuffer.length > 0) {
+            const removed = pcmBuffer.shift();
+            pcmBufferLength -= removed.length;
+        }
+    };
+
+    silentGainNode = audioContext.createGain();
+    silentGainNode.gain.value = 0;
+    source.connect(processorNode);
+    processorNode.connect(silentGainNode);
+    silentGainNode.connect(audioContext.destination);
+}
+
+async function saveCoughRecording() {
+    if (!coughDetectionActive) return;
+    if (pcmBuffer.length === 0) { coughDetectionActive = false; return; }
+
+    const numChannels = pcmBuffer[0].channels.length;
+    const totalSamples = pcmBufferLength;
+    const sampleRate = audioContext.sampleRate;
+    const channelData = Array.from({ length: numChannels }, () => new Float32Array(totalSamples));
+    let offset = 0;
+    pcmBuffer.forEach(chunk => {
+        for (let ch = 0; ch < numChannels; ch++) {
+            channelData[ch].set(chunk.channels[ch], offset);
+        }
+        offset += chunk.length;
+    });
+
+    const audioBufferOut = audioContext.createBuffer(numChannels, totalSamples, sampleRate);
+    for (let ch = 0; ch < numChannels; ch++) {
+        audioBufferOut.getChannelData(ch).set(channelData[ch]);
+    }
+
+    const wavData = encodeWAV(audioBufferOut);
+    const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `cough_${coughCount}_${timestamp}.wav`;
+    const downloadUrl = URL.createObjectURL(wavBlob);
+    // Optionally trigger a client-side download (disabled by default)
+    if (AUTO_DOWNLOAD) {
+        triggerDownload(downloadUrl, filename);
+    }
+    showRecording(filename, downloadUrl, 'audio/wav');
+
+    // Upload to backend and refresh server-side recordings list after success
+    try {
+        const serverRec = await uploadRecording(wavBlob, filename);
+        if (serverRec && serverRec.recording && serverRec.recording.id) {
+            await fetchAndRenderRecordings();
+        }
+    } catch (err) {
+        console.error('Upload failed', err);
+    }
+
+    coughDetectionActive = false;
+    coughStartTime = null;
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = 'Listening for coughs...';
+    statusEl.style.color = '#42a5f5';
+}
+
+function showRecording(filename, url, mimeType = 'audio/wav') {
+    const container = document.getElementById('recordings-container');
+    const title = document.getElementById('recordings-title');
+    if (container.children.length === 0) { title.style.display = 'block'; }
+    const div = document.createElement('div');
+    div.style.marginBottom = '10px';
+    div.innerHTML = `
+        <a href="${url}" download="${filename}">📥 ${filename}</a>
+        <audio controls style="margin-left: 10px; vertical-align: middle;" preload="none">
+            <source src="${url}" type="${mimeType}">
+        </audio>
+    `;
+    container.insertBefore(div, container.firstChild);
+}
+
+function triggerDownload(url, filename) {
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 0);
+}
+
+function encodeWAV(audioBuffer) {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const bitDepth = 16;
+    const bytesPerSample = bitDepth / 8;
+    const numFrames = audioBuffer.length;
+    const dataSize = numFrames * numChannels * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    function writeString(view, offset, string) { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); }
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+    view.setUint16(32, numChannels * bytesPerSample, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+    let offset = 44;
+    for (let frame = 0; frame < numFrames; frame++) {
+        for (let channel = 0; channel < numChannels; channel++) {
+            let sample = audioBuffer.getChannelData(channel)[frame];
+            sample = Math.max(-1, Math.min(1, sample));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+        }
+    }
+    return buffer;
+}
+
+function stopRecording() {
+    if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
+    if (silentGainNode) { silentGainNode.disconnect(); silentGainNode = null; }
+    if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+    if (audioStream) audioStream.getTracks().forEach(track => track.stop());
+    if (audioContext && audioContext.state !== 'closed') audioContext.close();
+    pcmBuffer = []; pcmBufferLength = 0; coughDetectionActive = false;
+    document.getElementById('status').textContent = 'Stopped';
+    document.getElementById('status').style.color = '#ff9800';
+}
+
+// Fetch caretaker profile and render recipients
+async function fetchProfile() {
+    try {
+        const res = await fetch('http://localhost:8000/profile', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            console.error('Failed to fetch profile', res.status);
+            return;
+        }
+        const data = await res.json();
+        if (!data || !data.caretaker) return;
+
+        const c = data.caretaker;
+        document.getElementById('caretakerName').textContent = c.full_name || c.username;
+        document.getElementById('caretakerEmail').textContent = c.email || '';
+        document.getElementById('caretakerPhone').textContent = c.phone_number || '';
+
+        const list = document.getElementById('recipientsList');
+        list.innerHTML = '';
+        if (!data.care_recipients || data.care_recipients.length === 0) {
+            list.innerHTML = '<p class="muted">No recipients added.</p>';
+            return;
+        }
+
+        data.care_recipients.forEach(r => {
+            const card = document.createElement('div');
+            card.className = 'recipient-card';
+            card.innerHTML = `
+                <div class="recipient-name">${r.full_name}</div>
+                <div class="recipient-meta">Age: ${r.age || '-'} • ${r.gender || '-'} • ${r.respiratory_condition_status ? 'Respiratory condition' : 'No condition'}</div>
+            `;
+            list.appendChild(card);
+        });
+
+    } catch (err) {
+        console.error('Error fetching profile', err);
+    }
+}
+
+function drawWaveform() {
+    requestAnimationFrame(drawWaveform);
+    const canvas = document.getElementById("waveCanvas");
+    const ctx = canvas.getContext("2d");
+    analyser.getByteTimeDomainData(dataArray);
+    ctx.fillStyle = "rgba(16, 20, 28, 0.1)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGrid(ctx, canvas);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#5ec2ff";
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = "#3ba9ff";
+    ctx.beginPath();
+    const sliceWidth = canvas.width * 3.0 / analyser.frequencyBinCount;
+    let x = 0;
+    for (let i = 0; i < analyser.frequencyBinCount; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * canvas.height / 2;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        x += sliceWidth;
+    }
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+}
+
+function drawGrid(ctx, canvas) {
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 6; i++) {
+        let y = (canvas.height / 6) * i;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+}
+
+async function uploadRecording(blob, filename) {
+    const form = new FormData();
+    const file = new File([blob], filename, { type: 'audio/wav' });
+    form.append('file', file);
+    const res = await fetch('http://localhost:8000/recordings/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: form
+    });
+    if (!res.ok) {
+        const body = await res.text();
+        console.error('Upload failed', res.status, body);
+        return null;
+    }
+    const data = await res.json();
+    console.log('Uploaded recording:', data);
+    return data;
+}
+
+// Fetch and render the authenticated user's server-side recordings
+async function fetchAndRenderRecordings() {
+    const container = document.getElementById('recordings-container');
+    container.innerHTML = '';
+    try {
+        const res = await fetch('http://localhost:8000/recordings/my', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            console.error('Failed to list recordings', res.status);
+            return;
+        }
+        const data = await res.json();
+        if (!data.recordings || data.recordings.length === 0) return;
+        document.getElementById('recordings-title').style.display = 'block';
+        for (const r of data.recordings) {
+            const div = document.createElement('div');
+            div.style.marginBottom = '10px';
+            const title = document.createElement('span');
+            title.textContent = `${r.filename} `;
+
+            const playBtn = document.createElement('button');
+            playBtn.textContent = 'Play';
+            playBtn.style.marginRight = '8px';
+            playBtn.addEventListener('click', () => playRecording(r.id));
+
+            const dlBtn = document.createElement('button');
+            dlBtn.textContent = 'Download';
+            dlBtn.addEventListener('click', () => downloadRecording(r.id, r.filename));
+
+            div.appendChild(title);
+            div.appendChild(playBtn);
+            div.appendChild(dlBtn);
+            container.appendChild(div);
+        }
+    } catch (err) {
+        console.error('Error fetching recordings', err);
+    }
+}
+
+// Fetch recorded audio bytes with Authorization header and play in a temporary audio element
+async function playRecording(id) {
+    try {
+        const res = await fetch(`http://localhost:8000/recordings/${id}/download`, {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            console.error('Failed to fetch recording', res.status);
+            return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = document.createElement('audio');
+        audio.src = url;
+        audio.controls = true;
+        audio.autoplay = true;
+        const container = document.getElementById('recordings-container');
+        const wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '10px';
+        wrapper.appendChild(audio);
+        container.insertBefore(wrapper, container.firstChild);
+    } catch (err) {
+        console.error('Error playing recording', err);
+    }
+}
+
+// Authenticated download (fetch with Authorization header and trigger download)
+async function downloadRecording(id, filename) {
+    try {
+        const res = await fetch(`http://localhost:8000/recordings/${id}/download`, {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            console.error('Failed to fetch recording for download', res.status);
+            return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `recording_${id}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+        console.error('Error downloading recording', err);
+    }
+}
+
+// --- End of audio UI ---
+</script>
 </body>
 </html>

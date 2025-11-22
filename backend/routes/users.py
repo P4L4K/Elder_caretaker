@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from datetime import timedelta
 
@@ -7,8 +7,63 @@ from tables.users import CareTaker, CareRecipient
 from config import get_db, ACCESS_TOKEN_EXPIRE_MINUTES
 from repository.users import UsersRepo, JWTRepo
 from utils.email import send_registration_email
+from typing import Optional
 
 router = APIRouter(tags=['Authentication'])
+
+
+def _get_username_from_auth(auth_header: Optional[str]):
+    if not auth_header:
+        return None
+    try:
+        parts = auth_header.split()
+        if len(parts) != 2:
+            return None
+        token = parts[1]
+        decoded = JWTRepo.decode_token(token)
+        return decoded.get('sub') if isinstance(decoded, dict) else None
+    except Exception:
+        return None
+
+
+@router.get('/profile')
+async def profile(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    try:
+        username = _get_username_from_auth(authorization)
+        if not username:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+
+        user = UsersRepo.find_by_username(db, CareTaker, username)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        recipients = []
+        for r in user.care_recipients:
+            recipients.append({
+                'id': r.id,
+                'full_name': r.full_name,
+                'email': r.email,
+                'phone_number': r.phone_number,
+                'age': r.age,
+                'gender': r.gender.value if r.gender else None,
+                'respiratory_condition_status': bool(r.respiratory_condition_status)
+            })
+
+        return {
+            'status': 'success',
+            'caretaker': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'full_name': user.full_name,
+                'phone_number': user.phone_number,
+            },
+            'care_recipients': recipients
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {str(e)}")
 
 # ---------- SIGNUP ----------
 @router.post('/signup', response_model=ResponseSchema)

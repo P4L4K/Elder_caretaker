@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Audio with Live Waveform + Cough Detection</title>
+
+  <!-- TFJS + SpeechCommands -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #10141c;
+      color: #e8ecf3;
+    }
+
+    h2 { margin-bottom: 10px; }
+
+    #startBtn {
+      padding: 10px 25px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-bottom: 20px;
+      background: #1e88e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      transition: 0.2s;
+    }
+    #startBtn:hover {
+      background: #42a5f5;
+    }
+
+    canvas {
+      width: 800px;
+      height: 250px;
+      background: #0c1118;
+      border: 1px solid #222b37;
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+      display: block;
+      margin-top: 10px;
+    }
+
+    #label-container div {
+      padding: 4px 0;
+      font-size: 15px;
+    }
+    h3 { margin-top: 30px; border-bottom: 1px solid #222b37; padding-bottom: 10px; }
+    #recordings-container a {
+      display: block;
+      color: #5ec2ff;
+      margin: 10px 0;
+      text-decoration: none;
+      font-size: 16px;
+    }
+    #recordings-container a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Audio Cough Detection (Continuous Buffer)</h2>
+  <button id="startBtn">Start Listening</button>
+  <div id="status" style="margin: 10px 0; color: #42a5f5; font-weight: bold;">Status: Not listening</div>
+  <div id="coughCounter" style="margin-bottom: 15px;">Coughs detected: <span id="coughCount">0</span></div>
+
+  <div id="label-container"></div>
+  <canvas id="waveCanvas" width="800" height="250"></canvas>
+  <h3 id="recordings-title" style="display: none;">Saved Cough Recordings</h3>
+  <div id="recordings-container"></div>
+
+<script>
+let audioContext, analyser, dataArray;
+let coughLabel = "COUGH";
+let coughCount = 0;
+let recognitionActive = false;
+let audioStream = null;
+
+// Continuous PCM buffer
+let processorNode = null;
+let silentGainNode = null;
+let pcmBuffer = [];
+let pcmBufferLength = 0;
+const PCM_BUFFER_SECONDS = 6; // retain last 6 seconds
+const MIN_RECORDING_DURATION = 4000; // 4 seconds minimum
+
+// Cough detection state
+let coughDetectionActive = false;
+let coughStartTime = null;
+let coughRecordingTimeout = null;
+
+const startBtn = document.getElementById("startBtn");
+startBtn.addEventListener("click", toggleRecording);
+
+async function toggleRecording() {
+  if (!recognitionActive) {
+    await init();
+    startBtn.textContent = 'Stop Listening';
+    recognitionActive = true;
+  } else {
+    stopRecording();
+    startBtn.textContent = 'Start Listening';
+    recognitionActive = false;
+  }
+}
+
+async function init() {
+  const recognizer = speechCommands.create(
+      "BROWSER_FFT",
+      undefined,
+      window.location.origin + "/model/model.json",
+      window.location.origin + "/model/metadata.json"
+  );
+
+  console.log("Loading model...");
+  await recognizer.ensureModelLoaded();
+  console.log("Model Loaded!");
+  document.getElementById('status').textContent = 'Status: Ready - Listening for coughs...';
+
+  const labels = recognizer.wordLabels();
+  const container = document.getElementById("label-container");
+  container.innerHTML = "";
+  labels.forEach(() => container.appendChild(document.createElement("div")));
+
+  try {
+    // Initialize audio context and get microphone access
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      } 
+    });
+    
+    const source = audioContext.createMediaStreamSource(audioStream);
+    
+    // Start continuous recording to buffer
+    startContinuousRecording(source);
+    
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+
+    let bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    source.connect(analyser);
+    drawWaveform();
+    
+    let coughScoreThreshold = 0.65;
+
+    // Start listening for speech commands
+    recognizer.listen(
+      result => {
+        // Show scores in UI
+        const scores = result.scores;
+        scores.forEach((score, i) => {
+          if (container.childNodes[i]) {
+            container.childNodes[i].textContent = `${labels[i]}: ${score.toFixed(2)}`;
+          }
+        });
+
+        const coughIndex = labels.indexOf(coughLabel);
+        const coughScore = coughIndex >= 0 ? scores[coughIndex] : 0;
+        
+        // Console log cough prediction score
+        console.log(`Cough prediction: ${coughScore.toFixed(4)}`);
+        
+        // Show real-time cough score (only when not actively handling a cough)
+        const statusEl = document.getElementById('status');
+        if (!coughDetectionActive) {
+          statusEl.innerHTML = `Listening... (Cough: ${coughScore.toFixed(2)})`;
+          statusEl.style.color = '#42a5f5';
+        }
+
+        // Check if cough is detected
+        if (coughScore >= coughScoreThreshold) {
+          if (!coughDetectionActive) {
+            // First cough detection - start the 4-second timer
+            coughDetectionActive = true;
+            coughStartTime = Date.now();
+            
+            // Increment cough counter
+            coughCount++;
+            document.getElementById('coughCount').textContent = coughCount;
+            
+            // Console log cough detection
+            console.log(`🚨 COUGH DETECTED! Score: ${coughScore.toFixed(4)} | Total coughs: ${coughCount}`);
+            
+            // Visual feedback
+            statusEl.textContent = `🚨 Cough #${coughCount} detected! (${coughScore.toFixed(2)}) - Recording...`;
+            statusEl.style.color = '#ff5252';
+            
+            // Clear any existing timeout
+            if (coughRecordingTimeout) {
+              clearTimeout(coughRecordingTimeout);
+            }
+            
+            // Set timeout to save after 4 seconds
+            coughRecordingTimeout = setTimeout(() => {
+              saveCoughRecording();
+            }, MIN_RECORDING_DURATION);
+          } else {
+            // Cough still detected - extend recording if needed
+            const elapsedTime = Date.now() - coughStartTime;
+            if (elapsedTime < MIN_RECORDING_DURATION) {
+              // Clear and reset the timeout to ensure minimum 4 seconds
+              if (coughRecordingTimeout) {
+                clearTimeout(coughRecordingTimeout);
+              }
+              coughRecordingTimeout = setTimeout(() => {
+                saveCoughRecording();
+              }, MIN_RECORDING_DURATION - elapsedTime);
+            }
+          }
+        }
+      },
+      {
+        includeSpectrogram: true,
+        overlapFactor: 0.5,
+        invokeCallbackOnNoiseAndUnknown: true,
+        probabilityThreshold: 0.5
+      }
+    );
+    
+    // Show UI feedback
+    document.getElementById('status').textContent = 'Listening for coughs...';
+    document.getElementById('status').style.color = '#42a5f5';
+    
+  } catch (error) {
+    console.error('Error initializing audio:', error);
+    document.getElementById('status').textContent = `Error: ${error.message}`;
+    document.getElementById('status').style.color = '#ff5252';
+  }
+}
+
+function startContinuousRecording(source) {
+  pcmBuffer = [];
+  pcmBufferLength = 0;
+  const bufferSize = 4096;
+  const channelCount = source.channelCount || 1;
+  const maxSamples = audioContext.sampleRate * PCM_BUFFER_SECONDS;
+
+  processorNode = audioContext.createScriptProcessor(bufferSize, channelCount, channelCount);
+  processorNode.onaudioprocess = (event) => {
+    const inputBuffer = event.inputBuffer;
+    const chunkChannels = [];
+    for (let ch = 0; ch < inputBuffer.numberOfChannels; ch++) {
+      const channelData = new Float32Array(inputBuffer.length);
+      channelData.set(inputBuffer.getChannelData(ch));
+      chunkChannels.push(channelData);
+    }
+    pcmBuffer.push({ channels: chunkChannels, length: inputBuffer.length });
+    pcmBufferLength += inputBuffer.length;
+
+    while (pcmBufferLength > maxSamples && pcmBuffer.length > 0) {
+      const removed = pcmBuffer.shift();
+      pcmBufferLength -= removed.length;
+    }
+  };
+
+  silentGainNode = audioContext.createGain();
+  silentGainNode.gain.value = 0;
+
+  source.connect(processorNode);
+  processorNode.connect(silentGainNode);
+  silentGainNode.connect(audioContext.destination);
+
+  console.log('Continuous PCM buffer started');
+}
+
+async function saveCoughRecording() {
+  if (!coughDetectionActive) return;
+  
+  console.log(`Saving cough recording #${coughCount} (${pcmBuffer.length} chunks)`);
+  
+  if (pcmBuffer.length === 0) {
+    console.warn('No PCM data in buffer to save');
+    coughDetectionActive = false;
+    return;
+  }
+
+  const numChannels = pcmBuffer[0].channels.length;
+  const totalSamples = pcmBufferLength;
+  const sampleRate = audioContext.sampleRate;
+  const channelData = Array.from({ length: numChannels }, () => new Float32Array(totalSamples));
+
+  let offset = 0;
+  pcmBuffer.forEach(chunk => {
+    for (let ch = 0; ch < numChannels; ch++) {
+      channelData[ch].set(chunk.channels[ch], offset);
+    }
+    offset += chunk.length;
+  });
+
+  const audioBufferOut = audioContext.createBuffer(numChannels, totalSamples, sampleRate);
+  for (let ch = 0; ch < numChannels; ch++) {
+    audioBufferOut.getChannelData(ch).set(channelData[ch]);
+  }
+
+  const wavData = encodeWAV(audioBufferOut);
+  const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `cough_${coughCount}_${timestamp}.wav`;
+  const downloadUrl = URL.createObjectURL(wavBlob);
+  
+  triggerDownload(downloadUrl, filename);
+  showRecording(filename, downloadUrl, 'audio/wav');
+  
+  // Reset cough detection state
+  coughDetectionActive = false;
+  coughStartTime = null;
+  
+  // Update status
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'Listening for coughs...';
+  statusEl.style.color = '#42a5f5';
+  
+  console.log(`✅ Cough recording #${coughCount} saved: ${filename}`);
+}
+
+function showRecording(filename, url, mimeType = 'audio/wav') {
+  const container = document.getElementById('recordings-container');
+  const title = document.getElementById('recordings-title');
+  
+  // Show title if first recording
+  if (container.children.length === 0) {
+    title.style.display = 'block';
+  }
+  
+  // Create recording entry
+  const div = document.createElement('div');
+  div.style.marginBottom = '10px';
+  div.innerHTML = `
+    <a href="${url}" download="${filename}">📥 ${filename}</a>
+    <audio controls style="margin-left: 10px; vertical-align: middle;" preload="none">
+      <source src="${url}" type="${mimeType}">
+    </audio>
+  `;
+  
+  container.insertBefore(div, container.firstChild);
+}
+
+function triggerDownload(url, filename) {
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    if (a.parentNode) {
+      a.parentNode.removeChild(a);
+    }
+  }, 0);
+}
+
+function encodeWAV(audioBuffer) {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const numFrames = audioBuffer.length;
+  const dataSize = numFrames * numChannels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let frame = 0; frame < numFrames; frame++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      let sample = audioBuffer.getChannelData(channel)[frame];
+      sample = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+
+  return buffer;
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+function stopRecording() {
+  if (processorNode) {
+    processorNode.disconnect();
+    processorNode.onaudioprocess = null;
+    processorNode = null;
+  }
+  if (silentGainNode) {
+    silentGainNode.disconnect();
+    silentGainNode = null;
+  }
+  
+  // Clear any pending save timeout
+  if (coughRecordingTimeout) {
+    clearTimeout(coughRecordingTimeout);
+  }
+  
+  if (audioStream) {
+    audioStream.getTracks().forEach(track => track.stop());
+  }
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close();
+  }
+  
+  // Clear buffer
+  pcmBuffer = [];
+  pcmBufferLength = 0;
+  coughDetectionActive = false;
+  
+  document.getElementById('status').textContent = 'Stopped';
+  document.getElementById('status').style.color = '#ff9800';
+}
+
+function drawWaveform() {
+  requestAnimationFrame(drawWaveform);
+
+  const canvas = document.getElementById("waveCanvas");
+  const ctx = canvas.getContext("2d");
+
+  analyser.getByteTimeDomainData(dataArray);
+
+  ctx.fillStyle = "rgba(16, 20, 28, 0.1)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawGrid(ctx, canvas);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#5ec2ff";
+  ctx.shadowBlur = 4;
+  ctx.shadowColor = "#3ba9ff";
+  
+  ctx.beginPath();
+
+  const sliceWidth = canvas.width * 3.0 / analyser.frequencyBinCount;
+  let x = 0;
+
+  for (let i = 0; i < analyser.frequencyBinCount; i++) {
+    const v = dataArray[i] / 128.0;
+    const y = v * canvas.height / 2;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+
+    x += sliceWidth;
+  }
+
+  ctx.lineTo(canvas.width, canvas.height / 2);
+  ctx.stroke();
+}
+
+function drawGrid(ctx, canvas) {
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.lineWidth = 1;
+
+  for (let i = 1; i < 6; i++) {
+    let y = (canvas.height / 6) * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+</script>
+
+</body>
+</html>
