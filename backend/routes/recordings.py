@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Header
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Header, Form
 from sqlalchemy.orm import Session
 import os
 from typing import Optional
@@ -36,7 +36,7 @@ def _get_username_from_auth(auth_header: Optional[str]):
 
 
 @router.post('/upload')
-async def upload_recording(file: UploadFile = File(...), authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def upload_recording(file: UploadFile = File(...), authorization: Optional[str] = Header(None), db: Session = Depends(get_db), care_recipient_id: Optional[int] = Form(None)):
     try:
         username = _get_username_from_auth(authorization)
         if not username:
@@ -53,7 +53,7 @@ async def upload_recording(file: UploadFile = File(...), authorization: Optional
 
         # Try to store bytes in DB; if DB schema doesn't support it, fall back to saving on disk
         try:
-            rec = RecordingsRepo.create(db, caretaker_id=user.id, filename=safe_name, path='', data=content, mime_type=file.content_type or 'audio/wav')
+            rec = RecordingsRepo.create(db, caretaker_id=user.id, filename=safe_name, path='', data=content, mime_type=file.content_type or 'audio/wav', care_recipient_id=care_recipient_id)
             return {"status": "success", "recording": {"id": rec.id, "filename": rec.filename, "created_at": rec.created_at.isoformat()}}
         except Exception as e:
             logger.exception("DB storage failed, attempting disk fallback")
@@ -68,7 +68,7 @@ async def upload_recording(file: UploadFile = File(...), authorization: Optional
                 dest_path = os.path.join(user_dir, safe_name)
                 with open(dest_path, 'wb') as f:
                     f.write(content)
-                rec = RecordingsRepo.create(db, caretaker_id=user.id, filename=safe_name, path=dest_path, data=None, mime_type=file.content_type or 'audio/wav')
+                rec = RecordingsRepo.create(db, caretaker_id=user.id, filename=safe_name, path=dest_path, data=None, mime_type=file.content_type or 'audio/wav', care_recipient_id=care_recipient_id)
                 return {"status": "success", "recording": {"id": rec.id, "filename": rec.filename, "created_at": rec.created_at.isoformat(), "note": "stored-on-disk-fallback"}}
             except Exception as e2:
                 logger.exception("Disk fallback failed")
@@ -87,7 +87,7 @@ async def upload_recording(file: UploadFile = File(...), authorization: Optional
 
 
 @router.get('/my')
-async def list_my_recordings(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def list_my_recordings(authorization: Optional[str] = Header(None), db: Session = Depends(get_db), care_recipient_id: Optional[int] = None):
     try:
         username = _get_username_from_auth(authorization)
         if not username:
@@ -97,7 +97,10 @@ async def list_my_recordings(authorization: Optional[str] = Header(None), db: Se
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        recs = RecordingsRepo.list_for_caretaker(db, user.id)
+        if care_recipient_id:
+            recs = db.query(Recording).filter(Recording.caretaker_id == user.id, Recording.care_recipient_id == care_recipient_id).order_by(Recording.created_at.desc()).all()
+        else:
+            recs = RecordingsRepo.list_for_caretaker(db, user.id)
         return {"status": "success", "recordings": [{"id": r.id, "filename": r.filename, "created_at": r.created_at.isoformat()} for r in recs]}
     except HTTPException:
         raise

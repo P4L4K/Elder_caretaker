@@ -9,6 +9,8 @@ class Recording(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     caretaker_id = Column(Integer, ForeignKey("caretakers.id", ondelete="CASCADE"), nullable=False)
+    # optional link to a care recipient
+    care_recipient_id = Column(Integer, ForeignKey("care_recipients.id", ondelete="SET NULL"), nullable=True)
     filename = Column(String, nullable=False)
     path = Column(String, nullable=False)
     mime_type = Column(String, default="audio/wav")
@@ -18,3 +20,4 @@ class Recording(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     caretaker = relationship("CareTaker")
+    care_recipient = relationship("CareRecipient")

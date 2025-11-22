@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Profile</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body{font-family:Inter,system-ui,-apple-system,Arial,Helvetica,sans-serif;background:#fff;padding:18px;color:#0f1720}
+        .card{background:#fbfbff;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(15,23,32,0.06);max-width:420px;margin:0 auto}
+        h2{margin-top:0}
+        .muted{color:#6b7280}
+        .field{margin:8px 0}
+        .close{display:inline-block;margin-top:12px;padding:8px 12px;border-radius:8px;background:#f6e7ff;border:none;cursor:pointer}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 id="title">Profile</h2>
+        <div id="content">
+            <p class="muted">Loading...</p>
+        </div>
+        <button class="close" onclick="window.close()">Close Window</button>
+    </div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const recipientId = params.get('recipient_id');
+const viewType = params.get('type'); // e.g. 'caretaker'
+const API_BASE = 'http://127.0.0.1:8000';
+const token = localStorage.getItem('token');
+
+async function load() {
+    if (!token) { document.getElementById('content').innerHTML = '<p class="muted">Not logged in.</p>'; return; }
+    try {
+        const res = await fetch(API_BASE + '/profile', { headers: { 'Authorization': 'Bearer ' + token }});
+        if (!res.ok) { document.getElementById('content').innerHTML = '<p class="muted">Failed to fetch profile.</p>'; return; }
+        const j = await res.json();
+        const caretaker = j.caretaker;
+        const recips = j.care_recipients || [];
+        if (viewType === 'caretaker' || !recipientId) {
+            document.getElementById('title').textContent = 'Caretaker Profile';
+            document.getElementById('content').innerHTML = `
+                <div class="field"><strong>${caretaker.full_name || caretaker.username}</strong></div>
+                <div class="field muted">${caretaker.email || ''}</div>
+                <div class="field muted">${caretaker.phone_number || ''}</div>
+            `;
+            return;
+        }
+        const found = recips.find(r => String(r.id) === String(recipientId));
+        if (!found) {
+            document.getElementById('title').textContent = 'Recipient';
+            document.getElementById('content').innerHTML = '<p class="muted">Recipient not found in your account.</p>';
+            return;
+        }
+        document.getElementById('title').textContent = found.full_name || 'Recipient';
+        document.getElementById('content').innerHTML = `
+            <div class="field"><strong>${found.full_name}</strong></div>
+            <div class="field muted">Age: ${found.age || '-'}</div>
+            <div class="field muted">Gender: ${found.gender || '-'}</div>
+            <div class="field muted">Respiratory condition: ${found.respiratory_condition_status ? 'Yes' : 'No'}</div>
+        `;
+    } catch (err) {
+        document.getElementById('content').innerHTML = '<p class="muted">Error fetching profile.</p>';
+        console.error(err);
+    }
+}
+
+load();
+</script>
+</body>
+</html>

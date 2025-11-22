@@ -6,81 +6,127 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         :root{
-            --bg:#0f1720; --card:#0b1220; --muted:#9aa6b2; --accent:#3ba9ff; --danger:#ff5252; --surface:#0b1220;
+            --bg: #ffffff; /* white background */
+            --card: #fbfbff; /* soft card */
+            --muted: #6b7280; /* gray */
+            --accent: #7cc4d6; /* pastel teal */
+            --accent-2: #ffd4d4; /* pastel pink */
+            --accent-3: #f6e7ff; /* pastel lavender */
+            --text: #0f1720;
+            --surface: #ffffff;
+            --shadow: 0 6px 18px rgba(15,23,32,0.06);
         }
-        body{background:var(--bg);color:#e6eef6;font-family:Inter,Arial,Helvetica,sans-serif;margin:0}
+        body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Arial,Helvetica,sans-serif;margin:0}
         .container{max-width:1200px;margin:18px auto;padding:18px}
-        .dashboard-grid{display:grid;grid-template-columns:300px 1fr;gap:20px}
-        .sidebar .profile-card{background:var(--card);padding:16px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+        .site-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0}
+        .dashboard-grid{display:grid;grid-template-columns:280px 1fr 360px;gap:20px}
+        .sidebar .profile-card{background:var(--card);padding:14px;border-radius:12px;box-shadow:var(--shadow)}
         .profile-header{display:flex;justify-content:space-between;align-items:center}
         .profile-header h3{margin:0;font-size:18px}
         .muted{color:var(--muted);margin:6px 0}
-        .recipients-list{margin-top:8px}
-        .recipient-card{background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;margin-bottom:8px}
-        .recipient-name{font-weight:600}
+        .recipients-list{margin-top:12px}
+        .recipient-card{background:linear-gradient(180deg, rgba(124,196,214,0.06), rgba(246,231,255,0.03));padding:12px;border-radius:12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid rgba(15,23,32,0.03)}
+        .recipient-card.active{box-shadow:0 6px 18px rgba(124,196,214,0.12);border-color:rgba(124,196,214,0.25);transform:translateY(-2px)}
+        .recipient-name{font-weight:800}
         .recipient-meta{color:var(--muted);font-size:13px}
+        .recipient-actions button{background:transparent;border:1px solid rgba(15,23,32,0.06);padding:6px 10px;border-radius:8px;cursor:pointer}
 
-        .mainpanel .panel{background:var(--surface);padding:16px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+        .mainpanel .panel{background:var(--surface);padding:18px;border-radius:12px;box-shadow:var(--shadow)}
         .panel-header{display:flex;justify-content:space-between;align-items:center}
         .monitor-controls{display:flex;align-items:center;gap:12px;margin-top:12px}
-        .primary{background:var(--accent);color:white;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer}
+        .primary{background:var(--accent);color:var(--text);border:none;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer}
         .status{color:var(--muted);font-weight:600}
-        .monitor-body{display:flex;gap:14px;margin-top:16px}
+        .monitor-body{display:grid;grid-template-columns:1fr 360px;gap:14px;margin-top:16px}
         .left{flex:1}
-        .right{width:320px}
-        .waveform{background:#071019;padding:8px;border-radius:6px}
+        .right{width:360px}
+        .waveform{background:#fff9fb;padding:12px;border-radius:10px;border:1px solid rgba(15,23,32,0.04)}
         .recordings-list{display:flex;flex-direction:column;gap:8px}
         button{cursor:pointer}
-        a.logout{color:var(--danger);text-decoration:none}
+        a.logout{color:var(--accent-2);text-decoration:none;font-weight:700}
+
+        .panel-sub{margin-top:12px}
+        .small{font-size:13px}
+        .chip{display:inline-block;padding:6px 10px;border-radius:999px;background:var(--accent-3);border:1px solid rgba(15,23,32,0.03);font-weight:700}
+
+        .history-list, .session-list{max-height:420px;overflow:auto;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(11,18,32,0.02), rgba(11,18,32,0.01))}
+        .header-card{background:var(--card);padding:12px;border-radius:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px}
+        .caretaker-meta{display:flex;flex-direction:column}
     </style>
 </head>
 
 <body>
-    <div class="container dashboard-grid">
-        <aside class="sidebar" aria-label="Profile">
-            <div class="profile-card">
-                <div class="profile-header">
-                    <h3 id="caretakerName">—</h3>
+    <div class="container">
+        <header class="site-header">
+            <div class="header-card">
+                <div style="width:56px;height:56px;border-radius:8px;background:linear-gradient(180deg,var(--accent-3),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--text)">CT</div>
+                <div class="caretaker-meta">
+                    <div id="caretakerName">—</div>
+                    <div class="muted small" id="caretakerEmail">&nbsp;</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center">
+                <div id="headerActions" style="display:flex;gap:8px;align-items:center">
+                    <button id="openProfileBtn" class="chip small">Profile</button>
                     <a href="index.html" class="logout">Logout</a>
                 </div>
-                <div id="caretakerInfo" class="profile-info">
-                    <p id="caretakerEmail" class="muted">&nbsp;</p>
-                    <p id="caretakerPhone" class="muted">&nbsp;</p>
-                </div>
-                <hr>
-                <h4>Care Recipients</h4>
-                <div id="recipientsList" class="recipients-list">
-                    <p class="muted">No recipients found.</p>
-                </div>
             </div>
-        </aside>
+        </header>
 
-        <main class="mainpanel" role="main">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>Audio Monitoring</h2>
-                    <p id="welcomeMsg" class="muted">Loading...</p>
+        <main class="dashboard-grid">
+            <aside class="sidebar" aria-label="Recipients">
+                <div class="profile-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <h4 style="margin:0">Care Recipients</h4>
+                        <input id="recipientSearch" placeholder="Search" style="padding:6px;border-radius:8px;border:1px solid rgba(15,23,32,0.04);font-size:13px" />
+                    </div>
+                    <div id="recipientsList" class="recipients-list" style="margin-top:12px;max-height:560px;overflow:auto">
+                        <p class="muted">Loading recipients…</p>
+                    </div>
                 </div>
+            </aside>
 
-                <div class="monitor-controls">
-                    <button id="startBtn" class="primary">Start Listening</button>
-                    <div id="status" class="status">Status: Not listening</div>
-                </div>
-
-                <div class="monitor-body">
-                    <div class="left">
-                        <div class="cough-counter">Coughs detected: <span id="coughCount">0</span></div>
-                        <div id="label-container" class="labels"></div>
-                        <div class="waveform">
-                            <canvas id="waveCanvas" width="760" height="180"></canvas>
+            <section class="mainpanel" role="main">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2 style="margin:0">Audio Monitoring</h2>
+                        <div style="text-align:right">
+                            <div id="welcomeMsg" class="muted">Loading...</div>
+                            <div class="small muted">Selected: <strong id="selectedRecipient">All</strong></div>
                         </div>
                     </div>
-                    <div class="right">
-                        <h3 id="recordings-title" style="display: none;">Saved Cough Recordings</h3>
-                        <div id="recordings-container" class="recordings-list"></div>
+
+                    <div class="monitor-controls" style="margin-top:12px">
+                        <button id="startBtn" class="primary">Start Listening</button>
+                        <div id="status" class="status" style="margin-left:12px">Status: Not listening</div>
+                        <div style="margin-left:auto" class="small muted">Coughs: <strong id="coughCount">0</strong></div>
+                    </div>
+
+                    <div style="margin-top:14px">
+                        <div id="label-container" class="labels small muted"></div>
+                        <div class="waveform" style="margin-top:12px">
+                            <canvas id="waveCanvas" width="760" height="200"></canvas>
+                        </div>
+                        <div class="panel-sub" style="margin-top:12px">
+                            <h4 class="small">Live Predictions (this session)</h4>
+                            <div id="sessionPredictions" class="session-list small">
+                                <p class="muted">No predictions yet in this session.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <aside class="right" aria-label="History">
+                <div class="profile-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <h4 style="margin:0">Detection History</h4>
+                        <div class="small muted">Filter: <strong id="historyRecipient">All</strong></div>
+                    </div>
+                    <div id="recordings-container" class="history-list" style="margin-top:12px;max-height:640px;overflow:auto">
+                        <p class="muted">No recordings yet.</p>
+                    </div>
+                </div>
+            </aside>
         </main>
     </div>
 
@@ -94,9 +140,21 @@ if (!token) {
 }
 
 document.getElementById('welcomeMsg').textContent = 'Logged in - audio monitoring ready.';
+// Backend API base (ensure this matches where your FastAPI app runs)
+const API_BASE = 'http://127.0.0.1:8000';
+// Session-scoped predictions (in-memory for this login session)
+let sessionPredictions = [];
+let selectedRecipientId = null;
+let selectedRecipientName = null;
+
 // On load, fetch profile and server-side recordings for this user
 fetchProfile().catch(err => console.warn('Could not fetch profile on load', err));
 fetchAndRenderRecordings().catch(err => console.warn('Could not fetch recordings on load', err));
+
+// Wire open-profile button to open a separate window showing profile details
+document.getElementById('openProfileBtn').addEventListener('click', () => {
+    window.open('profile.html?type=caretaker', '_blank', 'width=420,height=720');
+});
 
 // --- Start of merged audio UI (adapted from project root) ---
 let audioContext, analyser, dataArray;
@@ -114,8 +172,8 @@ let coughDetectionActive = false;
 let coughStartTime = null;
 let coughRecordingTimeout = null;
 
-    const AUTO_DOWNLOAD = false; // set false to avoid saving to user's Downloads
-    const startBtn = document.getElementById("startBtn");
+const AUTO_DOWNLOAD = false; // set false to avoid saving to user's Downloads
+const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", toggleRecording);
 
 async function toggleRecording() {
@@ -131,14 +189,14 @@ async function toggleRecording() {
 }
 
 async function init() {
-        // Load model files from backend server where they are mounted at /model
-        const MODEL_BASE = 'http://127.0.0.1:8000/model';
-        const recognizer = speechCommands.create(
-            "BROWSER_FFT",
-            undefined,
-            MODEL_BASE + "/model.json",
-            MODEL_BASE + "/metadata.json"
-        );
+    // Load model files from backend server where they are mounted at /model
+    const MODEL_BASE = API_BASE + '/model';
+    const recognizer = speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        MODEL_BASE + "/model.json",
+        MODEL_BASE + "/metadata.json"
+    );
 
     try {
         await recognizer.ensureModelLoaded();
@@ -175,24 +233,27 @@ async function init() {
                 const statusEl = document.getElementById('status');
                 if (!coughDetectionActive) {
                     statusEl.innerHTML = `Listening... (Cough: ${coughScore.toFixed(2)})`;
-                    statusEl.style.color = '#42a5f5';
+                    statusEl.style.color = '#2563eb';
                 }
 
                 if (coughScore >= coughScoreThreshold) {
+                    // record session-scoped prediction immediately
+                    addSessionPrediction({ score: coughScore, timestamp: Date.now(), recipient_id: selectedRecipientId, recipient_name: selectedRecipientName });
+
                     if (!coughDetectionActive) {
                         coughDetectionActive = true;
                         coughStartTime = Date.now();
                         coughCount++;
                         document.getElementById('coughCount').textContent = coughCount;
                         statusEl.textContent = `🚨 Cough #${coughCount} detected! (${coughScore.toFixed(2)}) - Recording...`;
-                        statusEl.style.color = '#ff5252';
+                        statusEl.style.color = '#ef4444';
                         if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
-                        coughRecordingTimeout = setTimeout(() => { saveCoughRecording(); }, MIN_RECORDING_DURATION);
+                        coughRecordingTimeout = setTimeout(() => { saveCoughRecording(coughScore); }, MIN_RECORDING_DURATION);
                     } else {
                         const elapsedTime = Date.now() - coughStartTime;
                         if (elapsedTime < MIN_RECORDING_DURATION) {
                             if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
-                            coughRecordingTimeout = setTimeout(() => { saveCoughRecording(); }, MIN_RECORDING_DURATION - elapsedTime);
+                            coughRecordingTimeout = setTimeout(() => { saveCoughRecording(coughScore); }, MIN_RECORDING_DURATION - elapsedTime);
                         }
                     }
                 }
@@ -203,7 +264,7 @@ async function init() {
     } catch (err) {
         console.error('Error init audio:', err);
         document.getElementById('status').textContent = `Error: ${err.message}`;
-        document.getElementById('status').style.color = '#ff5252';
+        document.getElementById('status').style.color = '#ef4444';
     }
 }
 
@@ -214,6 +275,7 @@ function startContinuousRecording(source) {
     const channelCount = source.channelCount || 1;
     const maxSamples = audioContext.sampleRate * PCM_BUFFER_SECONDS;
 
+    // ScriptProcessorNode used for now; consider migrating to AudioWorklet
     processorNode = audioContext.createScriptProcessor(bufferSize, channelCount, channelCount);
     processorNode.onaudioprocess = (event) => {
         const inputBuffer = event.inputBuffer;
@@ -239,7 +301,7 @@ function startContinuousRecording(source) {
     silentGainNode.connect(audioContext.destination);
 }
 
-async function saveCoughRecording() {
+async function saveCoughRecording(detectedScore) {
     if (!coughDetectionActive) return;
     if (pcmBuffer.length === 0) { coughDetectionActive = false; return; }
 
@@ -265,15 +327,14 @@ async function saveCoughRecording() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `cough_${coughCount}_${timestamp}.wav`;
     const downloadUrl = URL.createObjectURL(wavBlob);
-    // Optionally trigger a client-side download (disabled by default)
     if (AUTO_DOWNLOAD) {
         triggerDownload(downloadUrl, filename);
     }
     showRecording(filename, downloadUrl, 'audio/wav');
 
-    // Upload to backend and refresh server-side recordings list after success
+    // Upload to backend including selected recipient id (if any)
     try {
-        const serverRec = await uploadRecording(wavBlob, filename);
+        const serverRec = await uploadRecording(wavBlob, filename, selectedRecipientId);
         if (serverRec && serverRec.recording && serverRec.recording.id) {
             await fetchAndRenderRecordings();
         }
@@ -285,7 +346,7 @@ async function saveCoughRecording() {
     coughStartTime = null;
     const statusEl = document.getElementById('status');
     statusEl.textContent = 'Listening for coughs...';
-    statusEl.style.color = '#42a5f5';
+    statusEl.style.color = '#2563eb';
 }
 
 function showRecording(filename, url, mimeType = 'audio/wav') {
@@ -356,13 +417,38 @@ function stopRecording() {
     if (audioContext && audioContext.state !== 'closed') audioContext.close();
     pcmBuffer = []; pcmBufferLength = 0; coughDetectionActive = false;
     document.getElementById('status').textContent = 'Stopped';
-    document.getElementById('status').style.color = '#ff9800';
+    document.getElementById('status').style.color = '#ef4444';
+}
+
+// Add a prediction to the session list and re-render
+function addSessionPrediction(pred) {
+    sessionPredictions.unshift(pred);
+    // keep only recent 200 predictions in memory
+    if (sessionPredictions.length > 200) sessionPredictions.pop();
+    renderSessionPredictions();
+}
+
+function renderSessionPredictions() {
+    const el = document.getElementById('sessionPredictions');
+    el.innerHTML = '';
+    if (!sessionPredictions || sessionPredictions.length === 0) {
+        el.innerHTML = '<p class="muted">No predictions yet in this session.</p>';
+        return;
+    }
+    sessionPredictions.slice(0, 50).forEach(p => {
+        const d = document.createElement('div');
+        d.style.padding = '6px 8px';
+        d.style.borderBottom = '1px dashed rgba(0,0,0,0.04)';
+        const time = new Date(p.timestamp).toLocaleTimeString();
+        d.innerHTML = `<strong style="color:#0f1720">${(p.score||0).toFixed(2)}</strong> — <span class="muted">${time}</span> ${p.recipient_name ? '• ' + p.recipient_name : ''}`;
+        el.appendChild(d);
+    });
 }
 
 // Fetch caretaker profile and render recipients
 async function fetchProfile() {
     try {
-        const res = await fetch('http://localhost:8000/profile', {
+        const res = await fetch(API_BASE + '/profile', {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });
@@ -374,9 +460,10 @@ async function fetchProfile() {
         if (!data || !data.caretaker) return;
 
         const c = data.caretaker;
-        document.getElementById('caretakerName').textContent = c.full_name || c.username;
-        document.getElementById('caretakerEmail').textContent = c.email || '';
-        document.getElementById('caretakerPhone').textContent = c.phone_number || '';
+        const nameEl = document.getElementById('caretakerName');
+        const emailEl = document.getElementById('caretakerEmail');
+        if (nameEl) nameEl.textContent = c.full_name || c.username;
+        if (emailEl) emailEl.textContent = c.email || '';
 
         const list = document.getElementById('recipientsList');
         list.innerHTML = '';
@@ -385,13 +472,35 @@ async function fetchProfile() {
             return;
         }
 
+        // Add 'All' option
+        const allCard = document.createElement('div');
+        allCard.className = 'recipient-card';
+        allCard.textContent = 'All recipients';
+        allCard.dataset.recipientId = '';
+        allCard.addEventListener('click', () => selectRecipient(null, 'All', allCard));
+        list.appendChild(allCard);
+
         data.care_recipients.forEach(r => {
             const card = document.createElement('div');
             card.className = 'recipient-card';
-            card.innerHTML = `
-                <div class="recipient-name">${r.full_name}</div>
-                <div class="recipient-meta">Age: ${r.age || '-'} • ${r.gender || '-'} • ${r.respiratory_condition_status ? 'Respiratory condition' : 'No condition'}</div>
-            `;
+            card.dataset.recipientId = r.id;
+            const meta = `Age: ${r.age || '-'} • ${r.gender || '-'} • ${r.respiratory_condition_status ? 'Respiratory' : 'No condition'}`;
+            const innerLeft = document.createElement('div');
+            innerLeft.style.flex = '1';
+            const nameEl = document.createElement('div'); nameEl.className = 'recipient-name'; nameEl.textContent = r.full_name;
+            const metaEl = document.createElement('div'); metaEl.className = 'recipient-meta'; metaEl.textContent = meta;
+            innerLeft.appendChild(nameEl); innerLeft.appendChild(metaEl);
+
+            const actions = document.createElement('div'); actions.className = 'recipient-actions';
+            const selectBtn = document.createElement('button'); selectBtn.textContent = 'Select';
+            selectBtn.addEventListener('click', (ev) => { ev.stopPropagation(); selectRecipient(r.id, r.full_name, card); });
+            const viewBtn = document.createElement('button'); viewBtn.textContent = 'View';
+            viewBtn.addEventListener('click', (ev) => { ev.stopPropagation(); window.open(`profile.html?recipient_id=${r.id}`, '_blank', 'width=420,height=720'); });
+            actions.appendChild(selectBtn); actions.appendChild(viewBtn);
+
+            card.appendChild(innerLeft); card.appendChild(actions);
+            // clicking the whole card also selects
+            card.addEventListener('click', () => selectRecipient(r.id, r.full_name, card));
             list.appendChild(card);
         });
 
@@ -400,20 +509,31 @@ async function fetchProfile() {
     }
 }
 
+function selectRecipient(id, name, cardEl = null) {
+    selectedRecipientId = id;
+    selectedRecipientName = name || null;
+    document.getElementById('selectedRecipient').textContent = selectedRecipientName || 'All';
+    document.getElementById('historyRecipient').textContent = selectedRecipientName || 'All';
+    // highlight active card
+    document.querySelectorAll('.recipient-card').forEach(c => c.classList.remove('active'));
+    if (cardEl) cardEl.classList.add('active');
+    // refresh server-side recordings filtered by recipient
+    fetchAndRenderRecordings();
+}
+
 function drawWaveform() {
     requestAnimationFrame(drawWaveform);
     const canvas = document.getElementById("waveCanvas");
     const ctx = canvas.getContext("2d");
+    if (!analyser) return;
     analyser.getByteTimeDomainData(dataArray);
-    ctx.fillStyle = "rgba(16, 20, 28, 0.1)";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid(ctx, canvas);
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#5ec2ff";
-    ctx.shadowBlur = 4;
-    ctx.shadowColor = "#3ba9ff";
+    ctx.strokeStyle = "#7cc4d6";
     ctx.beginPath();
-    const sliceWidth = canvas.width * 3.0 / analyser.frequencyBinCount;
+    const sliceWidth = canvas.width * 1.0 / analyser.frequencyBinCount;
     let x = 0;
     for (let i = 0; i < analyser.frequencyBinCount; i++) {
         const v = dataArray[i] / 128.0;
@@ -426,7 +546,7 @@ function drawWaveform() {
 }
 
 function drawGrid(ctx, canvas) {
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = "rgba(15,23,32,0.03)";
     ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) {
         let y = (canvas.height / 6) * i;
@@ -434,11 +554,12 @@ function drawGrid(ctx, canvas) {
     }
 }
 
-async function uploadRecording(blob, filename) {
+async function uploadRecording(blob, filename, care_recipient_id = null) {
     const form = new FormData();
     const file = new File([blob], filename, { type: 'audio/wav' });
     form.append('file', file);
-    const res = await fetch('http://localhost:8000/recordings/upload', {
+    if (care_recipient_id) form.append('care_recipient_id', care_recipient_id);
+    const res = await fetch(API_BASE + '/recordings/upload', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token },
         body: form
@@ -458,7 +579,9 @@ async function fetchAndRenderRecordings() {
     const container = document.getElementById('recordings-container');
     container.innerHTML = '';
     try {
-        const res = await fetch('http://localhost:8000/recordings/my', {
+        let url = API_BASE + '/recordings/my';
+        if (selectedRecipientId) url += '?care_recipient_id=' + encodeURIComponent(selectedRecipientId);
+        const res = await fetch(url, {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });
@@ -467,13 +590,15 @@ async function fetchAndRenderRecordings() {
             return;
         }
         const data = await res.json();
-        if (!data.recordings || data.recordings.length === 0) return;
-        document.getElementById('recordings-title').style.display = 'block';
+        if (!data.recordings || data.recordings.length === 0) {
+            container.innerHTML = '<p class="muted">No recordings yet.</p>';
+            return;
+        }
         for (const r of data.recordings) {
             const div = document.createElement('div');
             div.style.marginBottom = '10px';
-            const title = document.createElement('span');
-            title.textContent = `${r.filename} `;
+            const title = document.createElement('div');
+            title.innerHTML = `<strong>${r.filename}</strong><div class="muted small">${new Date(r.created_at).toLocaleString()} ${r.care_recipient_id ? '• Recipient: ' + r.care_recipient_id : ''}</div>`;
 
             const playBtn = document.createElement('button');
             playBtn.textContent = 'Play';
@@ -497,7 +622,7 @@ async function fetchAndRenderRecordings() {
 // Fetch recorded audio bytes with Authorization header and play in a temporary audio element
 async function playRecording(id) {
     try {
-        const res = await fetch(`http://localhost:8000/recordings/${id}/download`, {
+        const res = await fetch(`${API_BASE}/recordings/${id}/download`, {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });
@@ -524,7 +649,7 @@ async function playRecording(id) {
 // Authenticated download (fetch with Authorization header and trigger download)
 async function downloadRecording(id, filename) {
     try {
-        const res = await fetch(`http://localhost:8000/recordings/${id}/download`, {
+        const res = await fetch(`${API_BASE}/recordings/${id}/download`, {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + token }
         });

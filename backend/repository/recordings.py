@@ -5,9 +5,10 @@ import datetime
 
 class RecordingsRepo:
     @staticmethod
-    def create(db: Session, caretaker_id: int, filename: str, path: str = None, data: bytes = None, mime_type: str = 'audio/wav', duration: float = None):
+    def create(db: Session, caretaker_id: int, filename: str, path: str = None, data: bytes = None, mime_type: str = 'audio/wav', duration: float = None, care_recipient_id: int = None):
         rec = Recording(
             caretaker_id=caretaker_id,
+            care_recipient_id=care_recipient_id,
             filename=filename,
             path=path or '',
             data=data,
