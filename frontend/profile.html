@@ -58,7 +58,11 @@ async function load() {
             <div class="field muted">Age: ${found.age || '-'}</div>
             <div class="field muted">Gender: ${found.gender || '-'}</div>
             <div class="field muted">Respiratory condition: ${found.respiratory_condition_status ? 'Yes' : 'No'}</div>
+            <div class="field" id="reportSummary"><strong>Medical Summary</strong><div class="muted">${found.report_summary || 'No summary available.'}</div></div>
+            <div class="field" id="reportList"><strong>Reports</strong><div class="muted">Loading reports...</div></div>
         `;
+        // Fetch report list
+        fetchReports(found.id);
     } catch (err) {
         document.getElementById('content').innerHTML = '<p class="muted">Error fetching profile.</p>';
         console.error(err);
@@ -66,6 +70,76 @@ async function load() {
 }
 
 load();
+
+async function fetchReports(recipientId) {
+    const API_BASE = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('token');
+    const el = document.getElementById('reportList');
+    if (!token) { el.innerHTML = '<div class="muted">Not logged in.</div>'; return; }
+    try {
+        const res = await fetch(`${API_BASE}/recipients/${recipientId}/reports`, { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!res.ok) { el.innerHTML = '<div class="muted">Failed to load reports.</div>'; return; }
+        const j = await res.json();
+        const reports = (j.result && j.result.reports) || [];
+        if (!reports.length) { el.innerHTML = '<div class="muted">No reports uploaded.</div>'; return; }
+        const listHtml = reports.map(r => `
+            <div style="margin-top:8px">
+                <div><strong>${r.filename}</strong> <span class="muted">(${new Date(r.uploaded_at).toLocaleString()})</span></div>
+                <div style="margin-top:6px">
+                    <button onclick="viewReport(${recipientId}, ${r.id})">View</button>
+                    <button onclick="downloadReport(${recipientId}, ${r.id})">Download</button>
+                </div>
+            </div>
+        `).join('');
+        el.innerHTML = listHtml;
+    } catch (err) {
+        el.innerHTML = '<div class="muted">Error loading reports.</div>';
+        console.error(err);
+    }
+}
+
+async function viewReport(recipientId, reportId) {
+    const API_BASE = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('token');
+    try {
+        const resp = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { alert('Failed to fetch report'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+    } catch (err) {
+        console.error(err);
+        alert('Error fetching report');
+    }
+}
+
+async function downloadReport(recipientId, reportId) {
+    const API_BASE = 'http://127.0.0.1:8000';
+    const token = localStorage.getItem('token');
+    try {
+        const resp = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { alert('Failed to download report'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // Try to get filename from response headers
+        const cd = resp.headers.get('Content-Disposition');
+        let filename = 'report';
+        if (cd) {
+            const m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+            if (m) filename = m[1];
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error(err);
+        alert('Error downloading report');
+    }
+}
 </script>
 </body>
 </html>

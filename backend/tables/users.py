@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Text
 from sqlalchemy.orm import relationship
 from config import Base
 import datetime
@@ -44,6 +44,8 @@ class CareRecipient(Base):
     respiratory_condition_status = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    # aggregated summary of uploaded medical reports for this recipient
+    report_summary = Column(Text, nullable=True)
 
     # Relationship back to caretaker
     caretaker = relationship("CareTaker", back_populates="care_recipients")

@@ -14,3 +14,8 @@ python-multipart
 uvicorn
 fastapi-mail 
 python-dotenv
+requests
+PyPDF2
+python-docx
+pillow
+pytesseract

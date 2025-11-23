@@ -46,7 +46,8 @@ async def profile(authorization: Optional[str] = Header(None), db: Session = Dep
                 'phone_number': r.phone_number,
                 'age': r.age,
                 'gender': r.gender.value if r.gender else None,
-                'respiratory_condition_status': bool(r.respiratory_condition_status)
+                'respiratory_condition_status': bool(r.respiratory_condition_status),
+                'report_summary': r.report_summary
             })
 
         return {

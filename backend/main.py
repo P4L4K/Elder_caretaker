@@ -49,6 +49,14 @@ def ensure_recordings_schema():
         with engine.begin() as conn:
             conn.execute(text(sql_add_col))
             conn.execute(text(sql_add_fk))
+        # Ensure care_recipients.report_summary column exists (idempotent)
+        try:
+            sql_add_summary = "ALTER TABLE care_recipients ADD COLUMN IF NOT EXISTS report_summary text;"
+            with engine.begin() as conn2:
+                conn2.execute(text(sql_add_summary))
+            print("Startup schema check: ensured care_recipients.report_summary exists.")
+        except Exception as se:
+            print("Startup schema check (report_summary) failed:", se)
         print("Startup schema check: ensured recordings.care_recipient_id exists (FK added if possible).")
     except Exception as e:
         print("Startup schema check failed:", e)
