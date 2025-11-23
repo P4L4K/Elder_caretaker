@@ -89,7 +89,8 @@ async def signup(request: Register, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(caretaker)
 
-        # Add care recipients
+        # Add care recipients and keep references so we can return their IDs
+        created_recipients = []
         for recipient in request.care_recipients:
             new_recipient = CareRecipient(
                 caretaker_id=caretaker.id,
@@ -101,8 +102,11 @@ async def signup(request: Register, db: Session = Depends(get_db)):
                 respiratory_condition_status=recipient.respiratory_condition_status
             )
             db.add(new_recipient)
+            created_recipients.append(new_recipient)
 
         db.commit()
+        for r in created_recipients:
+            db.refresh(r)
 
         # Send registration email
         await send_registration_email(request.email, request.username)
@@ -113,11 +117,18 @@ async def signup(request: Register, db: Session = Depends(get_db)):
             {"sub": caretaker.username}, expires_delta=access_token_expires
         )
 
+        # Return token and created recipient metadata (ids) so client can upload files
+        recipients_out = [{
+            'id': r.id,
+            'full_name': r.full_name,
+            'email': r.email
+        } for r in created_recipients]
+
         return ResponseSchema(
             code=200,
             status="success",
             message="Caretaker registered successfully!",
-            result={"access_token": token, "token_type": "bearer"}
+            result={"access_token": token, "token_type": "bearer", "care_recipients": recipients_out}
         )
 
     except HTTPException as e:

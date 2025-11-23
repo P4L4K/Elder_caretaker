@@ -63,17 +63,51 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             },
             body: JSON.stringify(formData)
         });
-        
+
         console.log('Registration response status:', response.status);
         const responseData = await response.json();
         console.log('Registration response data:', responseData);
 
-        if (response.ok) {
-            alert('Registration successful! Please check your email for confirmation.');
-            window.location.href = 'index.html';
-        } else {
+        if (!response.ok) {
             alert(responseData.detail || 'Registration failed. Please try again.');
+            return;
         }
+
+        // Successful signup: receive token and created recipients; upload files if present
+        const token = responseData.result && responseData.result.access_token;
+        const createdRecipients = responseData.result && responseData.result.care_recipients ? responseData.result.care_recipients : [];
+
+        // For each recipient form on the page, if a file was selected, upload it to the server
+        const recipientDivsAfter = document.querySelectorAll('.care-recipient');
+        for (let i = 0; i < recipientDivsAfter.length && i < createdRecipients.length; i++) {
+            const div = recipientDivsAfter[i];
+            const fileInput = div.querySelector('[name="recipient_report"]');
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const uploadForm = new FormData();
+                uploadForm.append('file', file, file.name);
+                try {
+                    const uploadResp = await fetch(`http://localhost:8000/recipients/${createdRecipients[i].id}/reports`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: uploadForm
+                    });
+                    if (!uploadResp.ok) {
+                        const err = await uploadResp.json();
+                        console.warn('Failed to upload report for recipient', createdRecipients[i].id, err);
+                    } else {
+                        console.log('Uploaded report for recipient', createdRecipients[i].id);
+                    }
+                } catch (ue) {
+                    console.error('Upload error:', ue);
+                }
+            }
+        }
+
+        alert('Registration successful! Please check your email for confirmation.');
+        window.location.href = 'index.html';
     } catch (error) {
         console.error('Error details:', error);
         

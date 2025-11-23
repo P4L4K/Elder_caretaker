@@ -47,3 +47,6 @@ class CareRecipient(Base):
 
     # Relationship back to caretaker
     caretaker = relationship("CareTaker", back_populates="care_recipients")
+
+    # medical reports relation
+    medical_reports = relationship('MedicalReport', back_populates='care_recipient', cascade='all, delete-orphan')

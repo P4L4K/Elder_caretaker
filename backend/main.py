@@ -8,11 +8,14 @@ from config import engine
 from sqlalchemy import text
 import tables.users as user_tables
 import tables.recordings as recordings_tables
+import tables.medical_reports as med_reports_tables
 import routes.users as user_routes
 import routes.recordings as recordings_routes
+import routes.recipients as recipients_routes
 
 user_tables.Base.metadata.create_all(bind=engine)
 recordings_tables.Base.metadata.create_all(bind=engine)
+med_reports_tables.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CareTaker AI Backend")
 
@@ -95,6 +98,7 @@ async def favicon():
 # Include routers without prefix since we're handling it in the router
 app.include_router(user_routes.router)
 app.include_router(recordings_routes.router)
+app.include_router(recipients_routes.router)
 
 
 
