@@ -56,7 +56,8 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         }
 
         console.log('Sending registration data:', formData);
-        const response = await fetch('http://localhost:8000/signup', {
+        const API_BASE = 'http://127.0.0.1:8000';
+        const response = await fetch(API_BASE + '/signup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -75,28 +76,51 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
 
         // Successful signup: receive token and created recipients; upload files if present
         const token = responseData.result && responseData.result.access_token;
+        // Save token so the user is logged in after registration
+        if (token) {
+            localStorage.setItem('token', token);
+        }
         const createdRecipients = responseData.result && responseData.result.care_recipients ? responseData.result.care_recipients : [];
 
+        console.log('Signup createdRecipients:', createdRecipients);
         // For each recipient form on the page, if a file was selected, upload it to the server
         const recipientDivsAfter = document.querySelectorAll('.care-recipient');
+        async function fileToBase64(file) {
+            return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = reader.result || '';
+                    // result is like 'data:<mime>;base64,AAAA...'
+                    const parts = result.split(',');
+                    resolve(parts.length > 1 ? parts[1] : parts[0]);
+                };
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(file);
+            });
+        }
+
         for (let i = 0; i < recipientDivsAfter.length && i < createdRecipients.length; i++) {
             const div = recipientDivsAfter[i];
             const fileInput = div.querySelector('[name="recipient_report"]');
             if (fileInput && fileInput.files && fileInput.files.length > 0) {
                 const file = fileInput.files[0];
-                const uploadForm = new FormData();
-                uploadForm.append('file', file, file.name);
                 try {
-                    const uploadResp = await fetch(`http://localhost:8000/recipients/${createdRecipients[i].id}/reports`, {
+                    console.log('Preparing base64 upload for recipient', createdRecipients[i].id, 'file=', file.name, 'tokenPresent=', !!token);
+                    const b64 = await fileToBase64(file);
+                    const payload = { filename: file.name, mime_type: file.type || 'application/octet-stream', b64 };
+                    const uploadResp = await fetch(`${API_BASE}/recipients/${createdRecipients[i].id}/reports/base64`, {
                         method: 'POST',
                         headers: {
-                            'Authorization': 'Bearer ' + token
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
                         },
-                        body: uploadForm
+                        body: JSON.stringify(payload)
                     });
+                    console.log('Upload response status:', uploadResp.status);
+                    const uploadJson = await uploadResp.json().catch(() => null);
+                    console.log('Upload response json:', uploadJson);
                     if (!uploadResp.ok) {
-                        const err = await uploadResp.json();
-                        console.warn('Failed to upload report for recipient', createdRecipients[i].id, err);
+                        console.warn('Failed to upload report for recipient', createdRecipients[i].id, uploadJson || await uploadResp.text());
                     } else {
                         console.log('Uploaded report for recipient', createdRecipients[i].id);
                     }
@@ -106,8 +130,8 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             }
         }
 
-        alert('Registration successful! Please check your email for confirmation.');
-        window.location.href = 'index.html';
+        alert('Registration successful! You are now logged in. Redirecting to dashboard.');
+        window.location.href = 'dashboard.html';
     } catch (error) {
         console.error('Error details:', error);
         
