@@ -10,6 +10,7 @@ from repository.medical_reports import create_medical_report, list_reports_for_r
 from utils.summarizer import extract_text_from_bytes, summarize_text_via_gemini
 from fastapi.responses import StreamingResponse
 from io import BytesIO
+from tables.medical_reports import MedicalReport
 
 router = APIRouter(tags=["Recipients"])
 
@@ -79,10 +80,13 @@ async def upload_medical_report(recipient_id: int, file: UploadFile = File(...),
         # After saving, aggregate all report texts for this recipient and generate a short summary
         try:
             reports = list_reports_for_recipient(db, recipient_id)
+            reports = list_reports_for_recipient(db, recipient_id)
             texts = []
+            print(f'[recipients] Found {len(reports)} reports for recipient {recipient_id} — extracting text...')
             for r in reports:
                 if r.data:
                     t = extract_text_from_bytes(r.data, r.mime_type)
+                    print(f"[recipients] report id={r.id} filename={r.filename} extracted_text_len={len(t) if t else 0}")
                     if t:
                         texts.append(t)
             combined = '\n\n'.join(texts)
@@ -212,6 +216,34 @@ def download_report(recipient_id: int, report_id: int, authorization: Optional[s
     return StreamingResponse(stream, media_type=report.mime_type or 'application/octet-stream', headers=headers)
 
 
+@router.get('/recipients/{recipient_id}/reports/{report_id}/extract_preview', response_model=ResponseSchema)
+def extract_preview(recipient_id: int, report_id: int, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Return a short preview of extracted text for a given report (debug endpoint)."""
+    username = _get_username_from_auth(authorization)
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+
+    caretaker = UsersRepo.find_by_username(db, CareTaker, username)
+    if not caretaker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    recipient = db.query(CareRecipient).filter(CareRecipient.id == recipient_id, CareRecipient.caretaker_id == caretaker.id).first()
+    if not recipient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Care recipient not found for this user")
+
+    report = db.query(MedicalReport).filter_by(id=report_id, care_recipient_id=recipient_id).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    try:
+        extracted = extract_text_from_bytes(report.data or b'', report.mime_type)
+        preview = (extracted or '')[:1000]
+        print(f"[recipients] extract_preview report_id={report_id} len_extracted={len(extracted)}")
+        return ResponseSchema(code=200, status='success', message='Extract preview', result={'extracted_preview': preview})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract preview: {e}")
+
+
 @router.post('/recipients/{recipient_id}/reports/base64', response_model=ResponseSchema)
 def upload_report_base64(recipient_id: int, payload: dict, authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     """Accept a JSON payload with base64-encoded file to simplify client uploads.
@@ -243,10 +275,13 @@ def upload_report_base64(recipient_id: int, payload: dict, authorization: Option
         # Aggregate texts and summarize (same as multipart flow)
         try:
             reports = list_reports_for_recipient(db, recipient_id)
+            reports = list_reports_for_recipient(db, recipient_id)
             texts = []
+            print(f'[recipients] (re-summarize) Found {len(reports)} reports for recipient {recipient_id} — extracting text...')
             for r in reports:
                 if r.data:
                     t = extract_text_from_bytes(r.data, r.mime_type)
+                    print(f"[recipients] (re-summarize) report id={r.id} filename={r.filename} extracted_text_len={len(t) if t else 0}")
                     if t:
                         texts.append(t)
             combined = '\n\n'.join(texts)

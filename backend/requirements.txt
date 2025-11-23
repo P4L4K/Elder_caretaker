@@ -16,6 +16,8 @@ fastapi-mail
 python-dotenv
 requests
 PyPDF2
+pdfplumber
+pdf2image
 python-docx
 pillow
 pytesseract
