@@ -22,16 +22,33 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def _get_username_from_auth(auth_header: Optional[str]):
     if not auth_header:
+        logger.warning("No Authorization header provided")
         return None
+    
     try:
         # expected: "Bearer <token>"
         parts = auth_header.split()
-        if len(parts) != 2:
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            logger.warning(f"Invalid Authorization header format: {auth_header[:50]}...")
             return None
+            
         token = parts[1]
+        if not token:
+            logger.warning("Empty token")
+            return None
+            
+        logger.debug(f"Attempting to decode token: {token[:10]}...")
         decoded = JWTRepo.decode_token(token)
-        return decoded.get('sub') if isinstance(decoded, dict) else None
-    except Exception:
+        
+        if not decoded or not isinstance(decoded, dict) or 'sub' not in decoded:
+            logger.warning("Invalid token content")
+            return None
+            
+        logger.debug(f"Successfully decoded token for user: {decoded['sub']}")
+        return decoded['sub']
+        
+    except Exception as e:
+        logger.error(f"Error decoding token: {str(e)}")
         return None
 
 
@@ -40,7 +57,11 @@ async def upload_recording(file: UploadFile = File(...), authorization: Optional
     try:
         username = _get_username_from_auth(authorization)
         if not username:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+            logger.warning("Authentication failed: Missing or invalid token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"status": "error", "message": "Authentication required"}
+            )
 
         user = UsersRepo.find_by_username(db, CareTaker, username)
         if not user:
@@ -91,7 +112,11 @@ async def list_my_recordings(authorization: Optional[str] = Header(None), db: Se
     try:
         username = _get_username_from_auth(authorization)
         if not username:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+            logger.warning("Authentication failed: Missing or invalid token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"status": "error", "message": "Authentication required"}
+            )
 
         user = UsersRepo.find_by_username(db, CareTaker, username)
         if not user:
@@ -114,7 +139,11 @@ async def download_recording(rec_id: int, authorization: Optional[str] = Header(
     try:
         username = _get_username_from_auth(authorization)
         if not username:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid token")
+            logger.warning("Authentication failed: Missing or invalid token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"status": "error", "message": "Authentication required"}
+            )
 
         user = UsersRepo.find_by_username(db, CareTaker, username)
         if not user:

@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 import base64
@@ -12,6 +14,9 @@ import tables.medical_reports as med_reports_tables
 import routes.users as user_routes
 import routes.recordings as recordings_routes
 import routes.recipients as recipients_routes
+import routes.emotion as emotion_routes
+
+from routes import elderly
 
 user_tables.Base.metadata.create_all(bind=engine)
 recordings_tables.Base.metadata.create_all(bind=engine)
@@ -77,14 +82,11 @@ if os.path.exists(model_dir):
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    # Allow all origins for development to avoid CORS issues with the frontend static server.
-    # Note: when `allow_origins` is ['*'] you MUST set `allow_credentials=False`.
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        # Explicitly allow the Authorization header and common content headers to satisfy preflight
-        allow_headers=["Authorization", "Content-Type", "Accept"],
-        expose_headers=["Content-Disposition"]
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],  # This is needed for Authorization header
+    expose_headers=["*"]  # This ensures the client can read custom headers
 )
 
 @app.get("/")
@@ -108,6 +110,40 @@ app.include_router(user_routes.router)
 app.include_router(recordings_routes.router)
 app.include_router(recipients_routes.router)
 
+app.include_router(emotion_routes.router)
 
+app.include_router(elderly.router)
+
+# Global exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
+# Global exception handler for HTTP exceptions
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": exc.detail or "Not authenticated"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+# Global exception handler for all other exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    print(f"Unhandled exception: {str(exc)}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"},
+    )
 
 

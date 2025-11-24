@@ -51,6 +51,10 @@
         .history-list, .session-list{max-height:420px;overflow:auto;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(11,18,32,0.02), rgba(11,18,32,0.01))}
         .header-card{background:var(--card);padding:12px;border-radius:12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px}
         .caretaker-meta{display:flex;flex-direction:column}
+        
+        /* Logout button styles */
+        .logout-btn{background:#ff6b6b;color:white;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;margin-left:8px}
+        .logout-btn:hover{background:#ff5252}
     </style>
 </head>
 
@@ -67,7 +71,8 @@
             <div style="display:flex;gap:12px;align-items:center">
                 <div id="headerActions" style="display:flex;gap:8px;align-items:center">
                     <button id="openProfileBtn" class="chip small">Profile</button>
-                    <a href="index.html" class="logout">Logout</a>
+                    <!-- ADDED LOGOUT BUTTON -->
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
                 </div>
             </div>
         </header>
@@ -114,6 +119,33 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Video / Emotion Monitoring Panel -->
+                <div class="panel" style="margin-top:18px">
+                    <div class="panel-header">
+                        <h2 style="margin:0">Video Monitoring</h2>
+                        <div class="small muted">Emotion recognition for registered faces only</div>
+                    </div>
+
+                    <div class="monitor-controls" style="margin-top:12px">
+                        <button id="startEmotionMonitorBtn" class="primary">Start Video Monitoring</button>
+                        <div id="emotionStatus" class="status" style="margin-left:12px">Status: Camera off</div>
+                    </div>
+
+                    <div style="margin-top:14px; display:grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap:14px; align-items:flex-start;">
+                        <div>
+                            <video id="emotionVideo" autoplay playsinline style="width:100%; max-width:480px; border-radius:10px; border:1px solid rgba(15,23,32,0.08); background:#000;"></video>
+                        </div>
+                        <div style="font-size:14px">
+                            <div><strong>Current Emotion:</strong> <span id="emotionCurrent">—</span></div>
+                            <div style="margin-top:6px"><strong>Confidence:</strong> <span id="emotionConfidence">—</span></div>
+                            <div style="margin-top:10px">
+                                <h4 class="small" style="margin:0 0 6px 0">Emotion Breakdown</h4>
+                                <div id="emotionBreakdown" class="small muted">No data yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <aside class="right" aria-label="History">
@@ -138,6 +170,12 @@ const token = localStorage.getItem('token');
 if (!token) {
     window.location.href = 'index.html';
 }
+
+// ADD LOGOUT FUNCTIONALITY AT THE TOP
+document.getElementById('logoutBtn').addEventListener('click', function() {
+    localStorage.removeItem('token');
+    window.location.href = 'index.html';
+});
 
 document.getElementById('welcomeMsg').textContent = 'Logged in - audio monitoring ready.';
 // Backend API base (ensure this matches where your FastAPI app runs)
@@ -671,7 +709,130 @@ async function downloadRecording(id, filename) {
     }
 }
 
-// --- End of audio UI ---
+// ==============================
+// Video / Emotion Monitoring UI
+// ==============================
+const EMOTION_API_BASE = 'http://127.0.0.1:5000'; // Flask emotion service
+const startEmotionBtn = document.getElementById('startEmotionMonitorBtn');
+const emotionVideo = document.getElementById('emotionVideo');
+const emotionStatus = document.getElementById('emotionStatus');
+const emotionCurrentEl = document.getElementById('emotionCurrent');
+const emotionConfEl = document.getElementById('emotionConfidence');
+const emotionBreakdownEl = document.getElementById('emotionBreakdown');
+
+let emotionStream = null;
+let emotionCaptureInterval = null;
+let emotionMonitoringActive = false;
+
+startEmotionBtn.addEventListener('click', toggleEmotionMonitoring);
+
+async function toggleEmotionMonitoring() {
+    if (!emotionMonitoringActive) {
+        await startEmotionMonitoring();
+    } else {
+        stopEmotionMonitoring();
+    }
+}
+
+async function startEmotionMonitoring() {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            emotionStatus.textContent = 'Status: Camera not supported in this browser';
+            emotionStatus.style.color = '#ef4444';
+            return;
+        }
+
+        emotionStatus.textContent = 'Status: Requesting camera...';
+        emotionStatus.style.color = '#2563eb';
+
+        emotionStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+        emotionVideo.srcObject = emotionStream;
+
+        emotionMonitoringActive = true;
+        startEmotionBtn.textContent = 'Stop Video Monitoring';
+        emotionStatus.textContent = 'Status: Camera on - analyzing...';
+        emotionStatus.style.color = '#2563eb';
+
+        // Capture a frame every 2 seconds
+        if (emotionCaptureInterval) clearInterval(emotionCaptureInterval);
+        emotionCaptureInterval = setInterval(captureAndSendEmotionFrame, 2000);
+    } catch (err) {
+        console.error('Error starting emotion monitoring:', err);
+        emotionStatus.textContent = 'Status: Failed to access camera';
+        emotionStatus.style.color = '#ef4444';
+    }
+}
+
+function stopEmotionMonitoring() {
+    emotionMonitoringActive = false;
+    startEmotionBtn.textContent = 'Start Video Monitoring';
+    if (emotionCaptureInterval) {
+        clearInterval(emotionCaptureInterval);
+        emotionCaptureInterval = null;
+    }
+    if (emotionStream) {
+        emotionStream.getTracks().forEach(t => t.stop());
+        emotionStream = null;
+    }
+    emotionVideo.srcObject = null;
+    emotionStatus.textContent = 'Status: Camera off';
+    emotionStatus.style.color = '#6b7280';
+}
+
+async function captureAndSendEmotionFrame() {
+    if (!emotionMonitoringActive || !emotionVideo || emotionVideo.readyState < 2) return;
+
+    try {
+        // Draw current video frame to an offscreen canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = emotionVideo.videoWidth || 640;
+        canvas.height = emotionVideo.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(emotionVideo, 0, 0, canvas.width, canvas.height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+        const res = await fetch(EMOTION_API_BASE + '/api/analyze/emotion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: dataUrl })
+        });
+
+        if (!res.ok) {
+            console.warn('Emotion API error:', res.status);
+            return;
+        }
+
+        const data = await res.json();
+
+        if (!data || data.user_id === null || data.dominant_emotion === null) {
+            // Unknown face / no clear face / not the registered user
+            emotionCurrentEl.textContent = '—';
+            emotionConfEl.textContent = '—';
+            emotionBreakdownEl.textContent = 'No recognized user in frame.';
+            return;
+        }
+
+        // Update UI with detected emotion
+        emotionCurrentEl.textContent = data.dominant_emotion;
+        emotionConfEl.textContent = data.confidence != null ? data.confidence.toFixed(1) + '%' : '—';
+
+        if (data.emotions && Object.keys(data.emotions).length > 0) {
+            const parts = Object.entries(data.emotions)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([k, v]) => `${k}: ${v.toFixed(1)}%`);
+            emotionBreakdownEl.textContent = parts.join(' | ');
+        } else {
+            emotionBreakdownEl.textContent = 'No detailed emotion breakdown.';
+        }
+
+    } catch (err) {
+        console.error('Error capturing/sending emotion frame:', err);
+    }
+}
+
+// --- End of audio + video UI ---
 </script>
 </body>
 </html>

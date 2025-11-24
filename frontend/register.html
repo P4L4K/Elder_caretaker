@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CareTaker - Register</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Add face-api.js scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -75,6 +78,34 @@
                         <button type="button" class="remove-recipient" style="display: none;">&times;</button>
                     </div>
                 </div>
+
+                <!-- Face Registration Section -->
+                <div class="form-group">
+                    <h3>Face Registration (Optional but Recommended)</h3>
+                    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Capture face for personalized monitoring and recognition</p>
+                    
+                    <div class="video-container" style="margin: 20px 0; text-align: center;">
+                        <video id="webcam" autoplay playsinline style="width: 100%; max-width: 400px; border: 2px solid #ddd; border-radius: 5px;"></video>
+                        <canvas id="canvas" style="display: none;"></canvas>
+                    </div>
+                    
+                    <div class="face-controls" style="margin: 15px 0; text-align: center;">
+                        <button type="button" id="captureFaceBtn" style="width: auto; background: #17a2b8; margin: 5px; padding: 10px 20px;">
+                            📷 Capture Face (Webcam)
+                        </button>
+                        <button type="button" id="retakeFaceBtn" style="width: auto; background: #6c757d; margin: 5px; padding: 10px 20px; display: none;">
+                            🔄 Retake
+                        </button>
+                        <div style="margin-top: 15px; font-size: 14px; color: #555;">
+                            OR upload a clear front-facing photo:
+                        </div>
+                        <input type="file" id="faceImageUpload" accept="image/*" style="margin-top: 8px;" />
+                        <div id="faceStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 14px;"></div>
+                    </div>
+                    
+                    <!-- Hidden field to store face descriptor (used by both webcam and upload) -->
+                    <input type="hidden" id="faceDescriptor" name="face_descriptor">
+                </div>
                 
                 <button type="button" id="addRecipient">Add Another Care Recipient</button>
                 <button type="submit">Register</button>
@@ -85,5 +116,7 @@
         </div>
     </div>
     <script src="js/register.js?v=2" defer></script>
+    <!-- face-registration.js is in the frontend root, not in /js -->
+    <script src="face-registration.js" defer></script>
 </body>
 </html>

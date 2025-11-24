@@ -426,6 +426,10 @@
                     <span>Audio Monitoring</span>
                     ➜
                 </button>
+                <button class="nav-chip" data-target="video-section">
+                    <span>Video Monitoring</span>
+                    ➜
+                </button>
                 <button class="nav-chip" data-target="reports-section">
                     <span>Medical Reports</span>
                     ➜
@@ -513,6 +517,39 @@
                 </div>
             </section>
 
+            <section class="panel" id="video-section">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Monitoring</p>
+                        <h2>Video Monitoring</h2>
+                        <p class="muted">
+                            Detect emotions in real-time for registered faces only. If the face doesn't match a registered user,
+                            no emotion will be shown.
+                        </p>
+                    </div>
+                    <div id="emotionStatus" class="status-pill">Status: Camera off</div>
+                </div>
+
+                <div class="control-row">
+                    <button id="startEmotionMonitorBtn" class="primary-btn">Start Video Monitoring</button>
+                    <div class="stat-pill">
+                        <span>Current emotion</span>
+                        <strong id="emotionCurrent">—</strong>
+                    </div>
+                    <div class="stat-pill">
+                        <span>Confidence</span>
+                        <strong id="emotionConfidence">—</strong>
+                    </div>
+                </div>
+
+                <div class="grid-two" style="margin-top:24px; align-items:flex-start;">
+                    <article class="info-card" style="padding:16px; grid-column:1 / -1;">
+                        <p class="eyebrow">Live camera</p>
+                        <video id="emotionVideo" autoplay playsinline style="width:100%; max-width:520px; border-radius:20px; border:1px solid rgba(148,163,184,0.4); background:#000;"></video>
+                    </article>
+                </div>
+            </section>
+
             <section class="panel" id="reports-section">
                 <div class="panel-head">
                     <div>
@@ -560,7 +597,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
     <script>
     const API_BASE = 'http://127.0.0.1:8000';
+    const EMOTION_API_BASE = API_BASE + '/emotion';
     const token = localStorage.getItem('token');
+
     if (!token) {
         window.location.href = 'index.html';
     }
@@ -585,12 +624,24 @@
     const refreshReportsBtn = document.getElementById('refreshReports');
     const regenerateSummaryBtn = document.getElementById('regenerateSummary');
 
+    // Video monitoring DOM refs
+    const startEmotionMonitorBtn = document.getElementById('startEmotionMonitorBtn');
+    const emotionStatusEl = document.getElementById('emotionStatus');
+    const emotionVideoEl = document.getElementById('emotionVideo');
+    const emotionCurrentEl = document.getElementById('emotionCurrent');
+    const emotionConfidenceEl = document.getElementById('emotionConfidence');
+
     let recipientsCache = [];
     let selectedRecipientId = null;
     let selectedRecipientName = 'All';
     let sessionPredictions = [];
     let summaryGenerating = false;
     let reportsRefreshing = false;
+
+    // Video monitoring state
+    let emotionMonitoringActive = false;
+    let emotionStream = null;
+    let emotionCaptureInterval = null;
 
     document.querySelectorAll('.nav-chip').forEach(chip => {
         chip.addEventListener('click', () => {
@@ -1287,6 +1338,103 @@
         document.body.appendChild(a);
         a.click();
         setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 0);
+    }
+
+    // ==============================
+    // Video / Emotion Monitoring
+    // ==============================
+
+    if (startEmotionMonitorBtn) {
+        startEmotionMonitorBtn.addEventListener('click', toggleEmotionMonitoring);
+    }
+
+    async function toggleEmotionMonitoring() {
+        if (!emotionMonitoringActive) {
+            await startEmotionMonitoring();
+        } else {
+            stopEmotionMonitoring();
+        }
+    }
+
+    async function startEmotionMonitoring() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                emotionStatusEl.textContent = 'Status: Camera not supported in this browser';
+                emotionStatusEl.style.color = '#fb7185';
+                return;
+            }
+
+            emotionStatusEl.textContent = 'Status: Requesting camera…';
+            emotionStatusEl.style.color = '#38bdf8';
+
+            emotionStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+            emotionVideoEl.srcObject = emotionStream;
+
+            emotionMonitoringActive = true;
+            startEmotionMonitorBtn.textContent = 'Stop Video Monitoring';
+            emotionStatusEl.textContent = 'Status: Camera on - analyzing…';
+
+            if (emotionCaptureInterval) clearInterval(emotionCaptureInterval);
+            emotionCaptureInterval = setInterval(captureAndSendEmotionFrame, 2000);
+        } catch (err) {
+            console.error('Error starting emotion monitoring:', err);
+            emotionStatusEl.textContent = 'Status: Failed to access camera';
+            emotionStatusEl.style.color = '#fb7185';
+        }
+    }
+
+    function stopEmotionMonitoring() {
+        emotionMonitoringActive = false;
+        if (startEmotionMonitorBtn) startEmotionMonitorBtn.textContent = 'Start Video Monitoring';
+        if (emotionCaptureInterval) {
+            clearInterval(emotionCaptureInterval);
+            emotionCaptureInterval = null;
+        }
+        if (emotionStream) {
+            emotionStream.getTracks().forEach(t => t.stop());
+            emotionStream = null;
+        }
+        if (emotionVideoEl) emotionVideoEl.srcObject = null;
+        emotionStatusEl.textContent = 'Status: Camera off';
+        emotionStatusEl.style.color = '#94a3b8';
+    }
+
+    async function captureAndSendEmotionFrame() {
+        if (!emotionMonitoringActive || !emotionVideoEl || emotionVideoEl.readyState < 2) return;
+
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = emotionVideoEl.videoWidth || 640;
+            canvas.height = emotionVideoEl.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(emotionVideoEl, 0, 0, canvas.width, canvas.height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+            const res = await fetch(EMOTION_API_BASE + '/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataUrl })
+            });
+
+            if (!res.ok) {
+                console.warn('Emotion API error', res.status);
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!data || data.user_id === null || data.dominant_emotion === null) {
+                emotionCurrentEl.textContent = '—';
+                emotionConfidenceEl.textContent = '—';
+                return;
+            }
+
+            emotionCurrentEl.textContent = data.dominant_emotion;
+            emotionConfidenceEl.textContent = data.confidence != null ? data.confidence.toFixed(1) + '%' : '—';
+        } catch (err) {
+            console.error('Error capturing/sending emotion frame:', err);
+        }
     }
 
     fetchProfile();

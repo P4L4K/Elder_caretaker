@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum, Text, JSON
 from sqlalchemy.orm import relationship
 from config import Base
 import datetime
@@ -22,6 +22,7 @@ class CareTaker(Base):
     phone_number = Column(String(10), unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    face_descriptor = Column(JSON, nullable=True)  # ADD THIS LINE - stores face data as JSON array
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

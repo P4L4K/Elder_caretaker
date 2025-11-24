@@ -21,3 +21,4 @@ pdf2image
 python-docx
 pillow
 pytesseract
+deepface
