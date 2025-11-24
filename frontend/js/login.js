@@ -24,8 +24,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (response.ok) {
             // Store the token
             localStorage.setItem('token', data.result.access_token);
-            // Redirect to dashboard or home page
-            window.location.href = 'dashboard.html';
+            // Redirect to the redesigned profile landing page
+            window.location.href = 'profile.html';
         } else {
             alert(data.detail || 'Login failed. Please try again.');
         }

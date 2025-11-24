@@ -1,145 +1,1297 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Profile</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareTaker · Profile Hub</title>
     <style>
-        body{font-family:Inter,system-ui,-apple-system,Arial,Helvetica,sans-serif;background:#fff;padding:18px;color:#0f1720}
-        .card{background:#fbfbff;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(15,23,32,0.06);max-width:420px;margin:0 auto}
-        h2{margin-top:0}
-        .muted{color:#6b7280}
-        .field{margin:8px 0}
-        .close{display:inline-block;margin-top:12px;padding:8px 12px;border-radius:8px;background:#f6e7ff;border:none;cursor:pointer}
+        :root {
+            --bg: #050b16;
+            --bg-alt: #0f172a;
+            --card: #111c32;
+            --card-alt: #1b2942;
+            --border: rgba(148, 163, 184, 0.2);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-2: #a855f7;
+            --danger: #fb7185;
+            --success: #34d399;
+            --shadow: 0 25px 70px rgba(15, 23, 42, 0.55);
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at top, rgba(56,189,248,0.20), transparent 40%),
+                        radial-gradient(circle at 20% 20%, rgba(168,85,247,0.2), transparent 35%),
+                        var(--bg);
+            color: var(--text);
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .app-shell {
+            min-height: 100vh;
+            display: flex;
+            gap: 28px;
+            padding: 28px clamp(16px, 3vw, 48px);
+        }
+
+        .sidebar {
+            width: 320px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 28px;
+            backdrop-filter: blur(24px);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .brand span {
+            color: var(--accent);
+        }
+
+        .caretaker-chip {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            padding: 18px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(14,165,233,0.05));
+            border: 1px solid rgba(56,189,248,0.35);
+        }
+
+        .caretaker-chip .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(15,23,42,0.6);
+            display: grid;
+            place-items: center;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .caretaker-chip h4 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .caretaker-chip span { color: var(--muted); font-size: 0.9rem; }
+
+        .nav-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-chip {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148,163,184,0.2);
+            color: var(--text);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .nav-chip:hover,
+        .nav-chip:focus {
+            border-color: var(--accent);
+            transform: translateX(4px);
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+        }
+
+        .recipient-search {
+            margin-top: 12px;
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(148,163,184,0.3);
+            background: rgba(15,23,42,0.45);
+            color: var(--text);
+        }
+
+        .recipient-search::placeholder { color: var(--muted); }
+
+        .recipient-list {
+            margin-top: 16px;
+            max-height: 52vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-right: 6px;
+        }
+
+        .recipient-card {
+            border-radius: 16px;
+            border: 1px solid rgba(148,163,184,0.2);
+            padding: 12px 14px;
+            background: rgba(15,23,42,0.45);
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.15s ease;
+        }
+
+        .recipient-card.active {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(15,23,42,0.45));
+        }
+
+        .recipient-card h5 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+        }
+
+        .recipient-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        main.content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            padding-bottom: 48px;
+        }
+
+        .panel {
+            background: rgba(7, 11, 22, 0.6);
+            border-radius: 32px;
+            border: 1px solid var(--border);
+            padding: clamp(20px, 3vw, 36px);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .eyebrow {
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            font-size: 0.78rem;
+            margin-bottom: 4px;
+        }
+
+        .grid-two {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .info-card {
+            background: var(--card);
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid rgba(148,163,184,0.25);
+        }
+
+        .info-card h2 {
+            margin: 8px 0 4px;
+        }
+
+        .info-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: var(--muted);
+        }
+
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .tag {
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148,163,184,0.3);
+            font-size: 0.8rem;
+        }
+
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            margin: 24px 0;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            border: none;
+            color: #0f172a;
+            font-weight: 700;
+            padding: 14px 22px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .stat-pill {
+            background: rgba(15,23,42,0.55);
+            border-radius: 16px;
+            padding: 12px 18px;
+            border: 1px solid rgba(148,163,184,0.2);
+        }
+
+        .stat-pill span { color: var(--muted); font-size: 0.85rem; }
+        .stat-pill strong { display: block; font-size: 1.2rem; margin-top: 4px; }
+
+        .status-pill {
+            border-radius: 999px;
+            border: 1px solid rgba(148,163,184,0.25);
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            color: var(--muted);
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .wave-shell {
+            background: var(--card-alt);
+            border-radius: 28px;
+            border: 1px solid rgba(148,163,184,0.25);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        canvas { width: 100%; max-width: 100%; border-radius: 18px; background: rgba(15,23,42,0.6); }
+
+        .session-card {
+            margin-top: 20px;
+            background: rgba(15,23,42,0.6);
+            border-radius: 20px;
+            border: 1px solid rgba(148,163,184,0.2);
+            padding: 16px;
+        }
+
+        .session-list { max-height: 220px; overflow-y: auto; }
+
+        .session-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(148,163,184,0.18);
+        }
+
+        .history-list {
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .history-card {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(15,23,42,0.6);
+            border: 1px solid rgba(148,163,184,0.2);
+        }
+
+        .history-card h4 { margin: 0 0 6px; }
+        .history-card .meta { color: var(--muted); font-size: 0.85rem; }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid rgba(148,163,184,0.35);
+            color: var(--text);
+            border-radius: 12px;
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        .ghost-btn:disabled,
+        .primary-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .report-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .summary-text {
+            white-space: pre-line;
+            line-height: 1.5;
+        }
+
+        .report-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .report-card {
+            border-radius: 16px;
+            border: 1px solid rgba(148,163,184,0.25);
+            padding: 16px;
+            background: rgba(15,23,42,0.45);
+        }
+
+        .report-card h4 {
+            margin: 0 0 6px;
+        }
+
+        .report-meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        .report-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .report-preview {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed rgba(148,163,184,0.2);
+            font-size: 0.9rem;
+        }
+
+        .muted { color: var(--muted); }
+
+        @media (max-width: 1080px) {
+            .app-shell { flex-direction: column; }
+            .sidebar { width: 100%; }
+            .recipient-list { max-height: none; }
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2 id="title">Profile</h2>
-        <div id="content">
-            <p class="muted">Loading...</p>
-        </div>
-        <button class="close" onclick="window.close()">Close Window</button>
-    </div>
-
-<script>
-const params = new URLSearchParams(window.location.search);
-const recipientId = params.get('recipient_id');
-const viewType = params.get('type'); // e.g. 'caretaker'
-const API_BASE = 'http://127.0.0.1:8000';
-const token = localStorage.getItem('token');
-
-async function load() {
-    if (!token) { document.getElementById('content').innerHTML = '<p class="muted">Not logged in.</p>'; return; }
-    try {
-        const res = await fetch(API_BASE + '/profile', { headers: { 'Authorization': 'Bearer ' + token }});
-        if (!res.ok) { document.getElementById('content').innerHTML = '<p class="muted">Failed to fetch profile.</p>'; return; }
-        const j = await res.json();
-        const caretaker = j.caretaker;
-        const recips = j.care_recipients || [];
-        if (viewType === 'caretaker' || !recipientId) {
-            document.getElementById('title').textContent = 'Caretaker Profile';
-            document.getElementById('content').innerHTML = `
-                <div class="field"><strong>${caretaker.full_name || caretaker.username}</strong></div>
-                <div class="field muted">${caretaker.email || ''}</div>
-                <div class="field muted">${caretaker.phone_number || ''}</div>
-            `;
-            return;
-        }
-        const found = recips.find(r => String(r.id) === String(recipientId));
-        if (!found) {
-            document.getElementById('title').textContent = 'Recipient';
-            document.getElementById('content').innerHTML = '<p class="muted">Recipient not found in your account.</p>';
-            return;
-        }
-        document.getElementById('title').textContent = found.full_name || 'Recipient';
-        document.getElementById('content').innerHTML = `
-            <div class="field"><strong>${found.full_name}</strong></div>
-            <div class="field muted">Age: ${found.age || '-'}</div>
-            <div class="field muted">Gender: ${found.gender || '-'}</div>
-            <div class="field muted">Respiratory condition: ${found.respiratory_condition_status ? 'Yes' : 'No'}</div>
-            <div class="field" id="reportSummary"><strong>Medical Summary</strong><div class="muted">${found.report_summary || 'No summary available.'}</div></div>
-            <div class="field" id="reportList"><strong>Reports</strong><div class="muted">Loading reports...</div></div>
-        `;
-        // Fetch report list
-        fetchReports(found.id);
-    } catch (err) {
-        document.getElementById('content').innerHTML = '<p class="muted">Error fetching profile.</p>';
-        console.error(err);
-    }
-}
-
-load();
-
-async function fetchReports(recipientId) {
-    const API_BASE = 'http://127.0.0.1:8000';
-    const token = localStorage.getItem('token');
-    const el = document.getElementById('reportList');
-    if (!token) { el.innerHTML = '<div class="muted">Not logged in.</div>'; return; }
-    try {
-        const res = await fetch(`${API_BASE}/recipients/${recipientId}/reports`, { headers: { 'Authorization': 'Bearer ' + token } });
-        if (!res.ok) { el.innerHTML = '<div class="muted">Failed to load reports.</div>'; return; }
-        const j = await res.json();
-        const reports = (j.result && j.result.reports) || [];
-        if (!reports.length) { el.innerHTML = '<div class="muted">No reports uploaded.</div>'; return; }
-        const listHtml = reports.map(r => `
-            <div style="margin-top:8px">
-                <div><strong>${r.filename}</strong> <span class="muted">(${new Date(r.uploaded_at).toLocaleString()})</span></div>
-                <div style="margin-top:6px">
-                    <button onclick="viewReport(${recipientId}, ${r.id})">View</button>
-                    <button onclick="downloadReport(${recipientId}, ${r.id})">Download</button>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">Care<span>Taker</span></div>
+            <div class="caretaker-chip">
+                <div class="avatar">CT</div>
+                <div>
+                    <h4 id="sidebarCaretakerName">—</h4>
+                    <span id="sidebarCaretakerEmail">Loading…</span>
                 </div>
             </div>
-        `).join('');
-        el.innerHTML = listHtml;
-    } catch (err) {
-        el.innerHTML = '<div class="muted">Error loading reports.</div>';
-        console.error(err);
-    }
-}
 
-async function viewReport(recipientId, reportId) {
+            <div class="nav-group">
+                <button class="nav-chip" data-target="overview">
+                    <span>Profile Overview</span>
+                    ➜
+                </button>
+                <button class="nav-chip" data-target="audio-section">
+                    <span>Audio Monitoring</span>
+                    ➜
+                </button>
+                <button class="nav-chip" data-target="reports-section">
+                    <span>Medical Reports</span>
+                    ➜
+                </button>
+                <button class="nav-chip" data-target="history-section">
+                    <span>Historical Predictions</span>
+                    ➜
+                </button>
+            </div>
+
+            <div>
+                <div class="section-title">Care Recipients</div>
+                <input id="recipientSearch" type="search" class="recipient-search" placeholder="Search recipients">
+                <div id="recipientsList" class="recipient-list">
+                    <p class="muted">Loading recipients…</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="content">
+            <section class="panel" id="overview">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Profile Hub</p>
+                        <h1>Welcome back, <span id="caretakerName">—</span></h1>
+                        <p class="muted">Stay close to every care recipient from a single, modern workspace.</p>
+                    </div>
+                    <div class="status-pill">
+                        Logged in
+                    </div>
+                </div>
+
+                <div class="grid-two" style="margin-top:24px;">
+                    <article class="info-card">
+                        <p class="eyebrow">Caretaker</p>
+                        <h2 id="caretakerFullName">—</h2>
+                        <div class="info-row">
+                            <span>Email: <strong id="caretakerEmail">—</strong></span>
+                            <span>Phone: <strong id="caretakerPhone">—</strong></span>
+                        </div>
+                    </article>
+
+                    <article class="info-card">
+                        <p class="eyebrow">Focus recipient</p>
+                        <h2 id="recipientCardTitle">All recipients</h2>
+                        <div class="info-row" id="recipientCardMeta">Select a care recipient from the left panel to see details.</div>
+                        <div class="tag-row" id="recipientBadges"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="audio-section">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Monitoring</p>
+                        <h2>Audio Monitoring</h2>
+                        <p class="muted">Identify coughs in real-time for <strong id="selectedRecipient">All</strong>.</p>
+                    </div>
+                    <div id="status" class="status-pill">Status: Not listening</div>
+                </div>
+
+                <div class="control-row">
+                    <button id="startBtn" class="primary-btn">Start Listening</button>
+                    <div class="stat-pill">
+                        <span>Total coughs</span>
+                        <strong id="coughCount">0</strong>
+                    </div>
+                </div>
+
+                <div class="wave-shell">
+                    <canvas id="waveCanvas" width="900" height="220"></canvas>
+                </div>
+                <div id="label-container" class="muted" style="font-size:0.85rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:6px;"></div>
+
+                <div class="session-card">
+                    <div class="panel-head" style="margin-bottom:12px;">
+                        <div>
+                            <p class="eyebrow">Live Predictions</p>
+                            <h3>This session</h3>
+                        </div>
+                    </div>
+                    <div id="sessionPredictions" class="session-list">
+                        <p class="muted">No predictions yet in this session.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="reports-section">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Documentation</p>
+                        <h2>Medical Reports</h2>
+                        <p class="muted">Select a care recipient to browse uploaded files and their AI-generated summary.</p>
+                    </div>
+                    <div class="report-controls">
+                        <button id="refreshReports" class="ghost-btn" disabled>Refresh list</button>
+                        <button id="regenerateSummary" class="primary-btn" disabled>Regenerate summary</button>
+                    </div>
+                </div>
+                <div class="grid-two" style="margin-top:24px;">
+                    <article class="info-card">
+                        <p class="eyebrow">Report summary</p>
+                        <div id="summaryStatus" class="muted" style="margin-bottom:8px;">Select a recipient to view their summary.</div>
+                        <div id="medicalSummaryText" class="summary-text muted">No recipient selected.</div>
+                    </article>
+                    <article class="info-card">
+                        <p class="eyebrow">Uploaded files</p>
+                        <div id="reportsList" class="report-list">
+                            <p class="muted">Select a care recipient to list their medical reports.</p>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="history-section">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">History</p>
+                        <h2>Historical Predictions</h2>
+                        <div class="muted">Filter: <strong id="historyRecipient">All</strong></div>
+                    </div>
+                    <button id="refreshHistory" class="ghost-btn">Refresh</button>
+                </div>
+                <div id="recordings-container" class="history-list">
+                    <p class="muted">No recordings yet.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+    <script>
     const API_BASE = 'http://127.0.0.1:8000';
     const token = localStorage.getItem('token');
-    try {
-        const resp = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
-        if (!resp.ok) { alert('Failed to fetch report'); return; }
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-    } catch (err) {
-        console.error(err);
-        alert('Error fetching report');
+    if (!token) {
+        window.location.href = 'index.html';
     }
-}
 
-async function downloadReport(recipientId, reportId) {
-    const API_BASE = 'http://127.0.0.1:8000';
-    const token = localStorage.getItem('token');
-    try {
-        const resp = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
-        if (!resp.ok) { alert('Failed to download report'); return; }
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        // Try to get filename from response headers
-        const cd = resp.headers.get('Content-Disposition');
-        let filename = 'report';
-        if (cd) {
-            const m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
-            if (m) filename = m[1];
+    const caretakerNameEl = document.getElementById('caretakerName');
+    const caretakerFullEl = document.getElementById('caretakerFullName');
+    const caretakerEmailEl = document.getElementById('caretakerEmail');
+    const caretakerPhoneEl = document.getElementById('caretakerPhone');
+    const sidebarNameEl = document.getElementById('sidebarCaretakerName');
+    const sidebarEmailEl = document.getElementById('sidebarCaretakerEmail');
+    const recipientsListEl = document.getElementById('recipientsList');
+    const recipientSearchEl = document.getElementById('recipientSearch');
+    const recipientTitleEl = document.getElementById('recipientCardTitle');
+    const recipientMetaEl = document.getElementById('recipientCardMeta');
+    const recipientBadgesEl = document.getElementById('recipientBadges');
+    const selectedRecipientEl = document.getElementById('selectedRecipient');
+    const historyRecipientEl = document.getElementById('historyRecipient');
+    const refreshHistoryBtn = document.getElementById('refreshHistory');
+    const medicalSummaryEl = document.getElementById('medicalSummaryText');
+    const summaryStatusEl = document.getElementById('summaryStatus');
+    const reportsListEl = document.getElementById('reportsList');
+    const refreshReportsBtn = document.getElementById('refreshReports');
+    const regenerateSummaryBtn = document.getElementById('regenerateSummary');
+
+    let recipientsCache = [];
+    let selectedRecipientId = null;
+    let selectedRecipientName = 'All';
+    let sessionPredictions = [];
+    let summaryGenerating = false;
+    let reportsRefreshing = false;
+
+    document.querySelectorAll('.nav-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const targetId = chip.getAttribute('data-target');
+            const section = document.getElementById(targetId);
+            if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    refreshHistoryBtn.addEventListener('click', () => fetchAndRenderRecordings());
+    refreshReportsBtn.addEventListener('click', () => fetchRecipientReports());
+    regenerateSummaryBtn.addEventListener('click', () => handleRegenerateSummary());
+
+    recipientSearchEl.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = recipientsCache.filter(r => (r.full_name || '').toLowerCase().includes(term));
+        renderRecipients(filtered);
+    });
+
+    async function fetchProfile() {
+        try {
+            const res = await fetch(API_BASE + '/profile', {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to fetch profile');
+            const data = await res.json();
+            if (!data || !data.caretaker) return;
+
+            const caretaker = data.caretaker;
+            caretakerNameEl.textContent = caretaker.full_name || caretaker.username;
+            caretakerFullEl.textContent = caretaker.full_name || caretaker.username;
+            caretakerEmailEl.textContent = caretaker.email || '—';
+            caretakerPhoneEl.textContent = caretaker.phone_number || '—';
+            sidebarNameEl.textContent = caretaker.full_name || caretaker.username;
+            sidebarEmailEl.textContent = caretaker.email || '';
+
+            recipientsCache = data.care_recipients || [];
+            renderRecipients(recipientsCache);
+        } catch (err) {
+            console.error('Error fetching profile', err);
+            recipientsListEl.innerHTML = '<p class="muted">Unable to load recipients.</p>';
         }
+    }
+
+    function renderRecipients(list) {
+        recipientsListEl.innerHTML = '';
+        const allCard = createRecipientCard({ id: '', full_name: 'All recipients', meta: 'Monitor every care recipient' });
+        recipientsListEl.appendChild(allCard);
+        if (!list.length) {
+            const empty = document.createElement('p');
+            empty.className = 'muted';
+            empty.textContent = 'No recipients added yet.';
+            recipientsListEl.appendChild(empty);
+            return;
+        }
+        list.forEach(r => recipientsListEl.appendChild(createRecipientCard(r)));
+        highlightActiveCard();
+    }
+
+    function createRecipientCard(recipient) {
+        const card = document.createElement('div');
+        card.className = 'recipient-card';
+        card.dataset.recipientId = recipient.id || '';
+        const metaText = recipient.meta || `Age: ${recipient.age || '-'} · ${recipient.gender || '-'} · ${recipient.respiratory_condition_status ? 'Respiratory care' : 'General care'}`;
+        card.innerHTML = `<h5>${recipient.full_name}</h5><p>${metaText}</p>`;
+        card.addEventListener('click', () => selectRecipient(recipient.id || null, recipient.full_name));
+        return card;
+    }
+
+    function selectRecipient(id, name) {
+        selectedRecipientId = id;
+        selectedRecipientName = name || 'All';
+        selectedRecipientEl.textContent = selectedRecipientName;
+        historyRecipientEl.textContent = selectedRecipientName;
+        updateRecipientPanel();
+        highlightActiveCard();
+        fetchAndRenderRecordings();
+        renderMedicalSummary();
+        fetchRecipientReports();
+    }
+
+    function highlightActiveCard() {
+        document.querySelectorAll('.recipient-card').forEach(card => {
+            const cardId = card.dataset.recipientId || null;
+            if (!selectedRecipientId && !cardId) {
+                card.classList.add('active');
+            } else if (selectedRecipientId && cardId && String(cardId) === String(selectedRecipientId)) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+        });
+    }
+
+    function updateRecipientPanel() {
+        if (!selectedRecipientId) {
+            recipientTitleEl.textContent = 'All recipients';
+            recipientMetaEl.textContent = 'Session will monitor every care recipient assigned to you.';
+            recipientBadgesEl.innerHTML = '';
+            return;
+        }
+        const recipient = recipientsCache.find(r => String(r.id) === String(selectedRecipientId));
+        if (!recipient) return;
+        recipientTitleEl.textContent = recipient.full_name || 'Recipient';
+        recipientMetaEl.innerHTML = `Email: <strong>${recipient.email || '—'}</strong><br>Phone: <strong>${recipient.phone_number || '—'}</strong>`;
+        const badges = [
+            `Age ${recipient.age || '—'}`,
+            recipient.gender || '—',
+            recipient.respiratory_condition_status ? 'Respiratory care' : 'General care'
+        ];
+        recipientBadgesEl.innerHTML = badges.map(b => `<span class="tag">${b}</span>`).join('');
+    }
+
+    function getSelectedRecipient() {
+        if (!selectedRecipientId) return null;
+        return recipientsCache.find(r => String(r.id) === String(selectedRecipientId)) || null;
+    }
+
+    function updateReportControlsState() {
+        const hasRecipient = Boolean(selectedRecipientId);
+        refreshReportsBtn.disabled = !hasRecipient || reportsRefreshing;
+        regenerateSummaryBtn.disabled = !hasRecipient || summaryGenerating;
+    }
+
+    function renderMedicalSummary(statusMessage = '') {
+        const recipient = getSelectedRecipient();
+        if (!recipient) {
+            summaryStatusEl.textContent = 'Select a recipient to view their summary.';
+            medicalSummaryEl.classList.add('muted');
+            medicalSummaryEl.textContent = 'No recipient selected.';
+            updateReportControlsState();
+            return;
+        }
+        const summary = (recipient.report_summary || '').trim();
+        if (statusMessage) {
+            summaryStatusEl.textContent = statusMessage;
+        } else {
+            summaryStatusEl.textContent = `Summary for ${recipient.full_name}`;
+        }
+        if (summary) {
+            medicalSummaryEl.classList.remove('muted');
+            medicalSummaryEl.textContent = summary;
+        } else {
+            medicalSummaryEl.classList.add('muted');
+            medicalSummaryEl.textContent = 'No summary generated yet. Click "Regenerate summary" to create one.';
+        }
+        updateReportControlsState();
+    }
+
+    async function fetchRecipientReports() {
+        const recipient = getSelectedRecipient();
+        if (!recipient) {
+            reportsListEl.innerHTML = '<p class="muted">Select a care recipient to list their medical reports.</p>';
+            reportsRefreshing = false;
+            updateReportControlsState();
+            return;
+        }
+        reportsRefreshing = true;
+        updateReportControlsState();
+        reportsListEl.innerHTML = '<p class="muted">Loading reports…</p>';
+        try {
+            const res = await fetch(`${API_BASE}/recipients/${recipient.id}/reports`, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to list reports');
+            const payload = await res.json();
+            const reports = payload?.result?.reports || [];
+            renderReportsList(recipient.id, reports);
+        } catch (err) {
+            console.error('Error fetching medical reports', err);
+            reportsListEl.innerHTML = '<p class="muted">Unable to load reports.</p>';
+        } finally {
+            reportsRefreshing = false;
+            updateReportControlsState();
+        }
+    }
+
+    function renderReportsList(recipientId, reports = []) {
+        if (!reports.length) {
+            reportsListEl.innerHTML = '<p class="muted">No reports uploaded yet for this recipient.</p>';
+            return;
+        }
+        reportsListEl.innerHTML = '';
+        reports.forEach(report => {
+            const card = document.createElement('div');
+            card.className = 'report-card';
+            card.innerHTML = `<h4>${report.filename}</h4><div class="report-meta">Uploaded ${new Date(report.uploaded_at).toLocaleString()}</div>`;
+
+            const actions = document.createElement('div');
+            actions.className = 'report-actions';
+
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'ghost-btn';
+            previewBtn.textContent = 'Preview text';
+            previewBtn.addEventListener('click', () => toggleReportPreview(card, recipientId, report.id));
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'ghost-btn';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.addEventListener('click', () => downloadMedicalReport(recipientId, report.id, report.filename));
+
+            actions.appendChild(previewBtn);
+            actions.appendChild(downloadBtn);
+            card.appendChild(actions);
+
+            const previewArea = document.createElement('div');
+            previewArea.className = 'report-preview muted';
+            previewArea.style.display = 'none';
+            card.appendChild(previewArea);
+
+            reportsListEl.appendChild(card);
+        });
+    }
+
+    async function toggleReportPreview(card, recipientId, reportId) {
+        const previewArea = card.querySelector('.report-preview');
+        const isVisible = previewArea.style.display === 'block';
+        if (isVisible) {
+            previewArea.style.display = 'none';
+            previewArea.textContent = '';
+            return;
+        }
+        previewArea.style.display = 'block';
+        previewArea.textContent = 'Loading preview…';
+        try {
+            const res = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/extract_preview`, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to fetch preview');
+            const payload = await res.json();
+            const preview = payload?.result?.extracted_preview?.trim();
+            previewArea.textContent = preview || 'No textual preview available for this report.';
+        } catch (err) {
+            console.error('Error fetching report preview', err);
+            previewArea.textContent = 'Unable to load preview.';
+        }
+    }
+
+    async function downloadMedicalReport(recipientId, reportId, filename) {
+        try {
+            const res = await fetch(`${API_BASE}/recipients/${recipientId}/reports/${reportId}/download`, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to download report');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = filename || `report_${reportId}`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+        } catch (err) {
+            console.error('Error downloading medical report', err);
+        }
+    }
+
+    async function handleRegenerateSummary() {
+        const recipient = getSelectedRecipient();
+        if (!recipient) return;
+        summaryGenerating = true;
+        updateReportControlsState();
+        renderMedicalSummary('Generating summary…');
+        try {
+            const res = await fetch(`${API_BASE}/recipients/${recipient.id}/summarize`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to generate summary');
+            const payload = await res.json();
+            const summary = payload?.result?.summary || '';
+            recipient.report_summary = summary;
+            renderMedicalSummary('Summary updated.');
+        } catch (err) {
+            console.error('Error regenerating summary', err);
+            summaryStatusEl.textContent = 'Unable to generate summary right now.';
+        } finally {
+            summaryGenerating = false;
+            updateReportControlsState();
+        }
+    }
+
+    // ---- Audio monitoring logic (adapted from dashboard) ----
+    let audioContext, analyser, dataArray;
+    let recognitionActive = false;
+    let audioStream = null;
+    let processorNode = null;
+    let silentGainNode = null;
+    let pcmBuffer = [];
+    let pcmBufferLength = 0;
+    const PCM_BUFFER_SECONDS = 6;
+    const MIN_RECORDING_DURATION = 4000;
+    let coughDetectionActive = false;
+    let coughStartTime = null;
+    let coughRecordingTimeout = null;
+    let coughCount = 0;
+    const AUTO_DOWNLOAD = false;
+    const startBtn = document.getElementById('startBtn');
+    const statusEl = document.getElementById('status');
+    const labelContainer = document.getElementById('label-container');
+
+    startBtn.addEventListener('click', toggleRecording);
+
+    async function toggleRecording() {
+        if (!recognitionActive) {
+            await initRecognizer();
+            startBtn.textContent = 'Stop Listening';
+            recognitionActive = true;
+        } else {
+            stopRecording();
+            startBtn.textContent = 'Start Listening';
+            recognitionActive = false;
+        }
+    }
+
+    async function initRecognizer() {
+        const MODEL_BASE = API_BASE + '/model';
+        const recognizer = speechCommands.create('BROWSER_FFT', undefined, MODEL_BASE + '/model.json', MODEL_BASE + '/metadata.json');
+        try {
+            await recognizer.ensureModelLoaded();
+            labelContainer.innerHTML = '';
+            const labels = recognizer.wordLabels();
+            labels.forEach(() => labelContainer.appendChild(document.createElement('div')));
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } });
+            const source = audioContext.createMediaStreamSource(audioStream);
+            startContinuousRecording(source);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            source.connect(analyser);
+            drawWaveform();
+
+            const coughLabel = 'COUGH';
+            const coughIndex = labels.indexOf(coughLabel);
+            const coughScoreThreshold = 0.65;
+
+            recognizer.listen(result => {
+                const scores = result.scores;
+                scores.forEach((score, i) => {
+                    if (labelContainer.childNodes[i]) {
+                        labelContainer.childNodes[i].textContent = `${labels[i]}: ${score.toFixed(2)}`;
+                    }
+                });
+
+                const coughScore = coughIndex >= 0 ? scores[coughIndex] : 0;
+                if (!coughDetectionActive) {
+                    statusEl.textContent = `Listening… (Cough: ${coughScore.toFixed(2)})`;
+                    statusEl.style.color = '#38bdf8';
+                }
+
+                if (coughScore >= coughScoreThreshold) {
+                    addSessionPrediction({ score: coughScore, timestamp: Date.now(), recipient_id: selectedRecipientId, recipient_name: selectedRecipientName });
+                    if (!coughDetectionActive) {
+                        coughDetectionActive = true;
+                        coughStartTime = Date.now();
+                        coughCount++;
+                        document.getElementById('coughCount').textContent = coughCount;
+                        statusEl.textContent = `🚨 Cough #${coughCount} detected! (${coughScore.toFixed(2)}) - Recording…`;
+                        statusEl.style.color = '#fb7185';
+                        if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+                        coughRecordingTimeout = setTimeout(() => saveCoughRecording(coughScore), MIN_RECORDING_DURATION);
+                    } else {
+                        const elapsed = Date.now() - coughStartTime;
+                        if (elapsed < MIN_RECORDING_DURATION) {
+                            if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+                            coughRecordingTimeout = setTimeout(() => saveCoughRecording(coughScore), MIN_RECORDING_DURATION - elapsed);
+                        }
+                    }
+                }
+            }, {
+                includeSpectrogram: true,
+                overlapFactor: 0.5,
+                invokeCallbackOnNoiseAndUnknown: true,
+                probabilityThreshold: 0.5
+            });
+
+            statusEl.textContent = 'Listening for coughs…';
+        } catch (err) {
+            console.error('Error init audio:', err);
+            statusEl.textContent = `Error: ${err.message}`;
+            statusEl.style.color = '#fb7185';
+        }
+    }
+
+    function startContinuousRecording(source) {
+        pcmBuffer = [];
+        pcmBufferLength = 0;
+        const bufferSize = 4096;
+        const channelCount = source.channelCount || 1;
+        const maxSamples = audioContext.sampleRate * PCM_BUFFER_SECONDS;
+
+        processorNode = audioContext.createScriptProcessor(bufferSize, channelCount, channelCount);
+        processorNode.onaudioprocess = (event) => {
+            const inputBuffer = event.inputBuffer;
+            const chunkChannels = [];
+            for (let ch = 0; ch < inputBuffer.numberOfChannels; ch++) {
+                const channelData = new Float32Array(inputBuffer.length);
+                channelData.set(inputBuffer.getChannelData(ch));
+                chunkChannels.push(channelData);
+            }
+            pcmBuffer.push({ channels: chunkChannels, length: inputBuffer.length });
+            pcmBufferLength += inputBuffer.length;
+
+            while (pcmBufferLength > maxSamples && pcmBuffer.length > 0) {
+                const removed = pcmBuffer.shift();
+                pcmBufferLength -= removed.length;
+            }
+        };
+
+        silentGainNode = audioContext.createGain();
+        silentGainNode.gain.value = 0;
+        source.connect(processorNode);
+        processorNode.connect(silentGainNode);
+        silentGainNode.connect(audioContext.destination);
+    }
+
+    async function saveCoughRecording(detectedScore) {
+        if (!coughDetectionActive || pcmBuffer.length === 0) {
+            coughDetectionActive = false;
+            return;
+        }
+
+        const numChannels = pcmBuffer[0].channels.length;
+        const totalSamples = pcmBufferLength;
+        const sampleRate = audioContext.sampleRate;
+        const channelData = Array.from({ length: numChannels }, () => new Float32Array(totalSamples));
+        let offset = 0;
+        pcmBuffer.forEach(chunk => {
+            for (let ch = 0; ch < numChannels; ch++) {
+                channelData[ch].set(chunk.channels[ch], offset);
+            }
+            offset += chunk.length;
+        });
+
+        const audioBufferOut = audioContext.createBuffer(numChannels, totalSamples, sampleRate);
+        for (let ch = 0; ch < numChannels; ch++) {
+            audioBufferOut.getChannelData(ch).set(channelData[ch]);
+        }
+
+        const wavData = encodeWAV(audioBufferOut);
+        const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `cough_${coughCount}_${timestamp}.wav`;
+        const downloadUrl = URL.createObjectURL(wavBlob);
+        if (AUTO_DOWNLOAD) {
+            triggerDownload(downloadUrl, filename);
+        }
+        showRecording(filename, downloadUrl, 'audio/wav');
+
+        try {
+            const serverRec = await uploadRecording(wavBlob, filename, selectedRecipientId);
+            if (serverRec && serverRec.recording && serverRec.recording.id) {
+                await fetchAndRenderRecordings();
+            }
+        } catch (err) {
+            console.error('Upload failed', err);
+        }
+
+        coughDetectionActive = false;
+        coughStartTime = null;
+        statusEl.textContent = 'Listening for coughs…';
+        statusEl.style.color = '#38bdf8';
+    }
+
+    function encodeWAV(audioBuffer) {
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const bitDepth = 16;
+        const bytesPerSample = bitDepth / 8;
+        const numFrames = audioBuffer.length;
+        const dataSize = numFrames * numChannels * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+        }
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(view, 8, 'WAVE');
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+        view.setUint16(32, numChannels * bytesPerSample, true);
+        view.setUint16(34, bitDepth, true);
+        writeString(view, 36, 'data');
+        view.setUint32(40, dataSize, true);
+        let offset = 44;
+        for (let frame = 0; frame < numFrames; frame++) {
+            for (let channel = 0; channel < numChannels; channel++) {
+                let sample = audioBuffer.getChannelData(channel)[frame];
+                sample = Math.max(-1, Math.min(1, sample));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+        }
+        return buffer;
+    }
+
+    function startWaveAnimation() {
+        drawWaveform();
+    }
+
+    function drawWaveform() {
+        requestAnimationFrame(drawWaveform);
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+        if (!analyser) return;
+        analyser.getByteTimeDomainData(dataArray);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.beginPath();
+        const sliceWidth = canvas.width * 1.0 / analyser.frequencyBinCount;
+        let x = 0;
+        for (let i = 0; i < analyser.frequencyBinCount; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = v * canvas.height / 2;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+    }
+
+    function stopRecording() {
+        if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
+        if (silentGainNode) { silentGainNode.disconnect(); silentGainNode = null; }
+        if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+        if (audioStream) audioStream.getTracks().forEach(track => track.stop());
+        if (audioContext && audioContext.state !== 'closed') audioContext.close();
+        pcmBuffer = []; pcmBufferLength = 0; coughDetectionActive = false;
+        statusEl.textContent = 'Stopped';
+        statusEl.style.color = '#fb7185';
+    }
+
+    function addSessionPrediction(pred) {
+        sessionPredictions.unshift(pred);
+        if (sessionPredictions.length > 200) sessionPredictions.pop();
+        renderSessionPredictions();
+    }
+
+    function renderSessionPredictions() {
+        const el = document.getElementById('sessionPredictions');
+        el.innerHTML = '';
+        if (!sessionPredictions.length) {
+            el.innerHTML = '<p class="muted">No predictions yet in this session.</p>';
+            return;
+        }
+        sessionPredictions.slice(0, 50).forEach(pred => {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+            const time = new Date(pred.timestamp).toLocaleTimeString();
+            item.innerHTML = `<strong>${(pred.score || 0).toFixed(2)}</strong><span class="muted">${time}${pred.recipient_name ? ' • ' + pred.recipient_name : ''}</span>`;
+            el.appendChild(item);
+        });
+    }
+
+    async function uploadRecording(blob, filename, care_recipient_id = null) {
+        const form = new FormData();
+        const file = new File([blob], filename, { type: 'audio/wav' });
+        form.append('file', file);
+        if (care_recipient_id) form.append('care_recipient_id', care_recipient_id);
+        const res = await fetch(API_BASE + '/recordings/upload', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token },
+            body: form
+        });
+        if (!res.ok) {
+            const body = await res.text();
+            console.error('Upload failed', res.status, body);
+            return null;
+        }
+        return res.json();
+    }
+
+    async function fetchAndRenderRecordings() {
+        const container = document.getElementById('recordings-container');
+        container.innerHTML = '';
+        try {
+            let url = API_BASE + '/recordings/my';
+            if (selectedRecipientId) url += '?care_recipient_id=' + encodeURIComponent(selectedRecipientId);
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to list recordings');
+            const data = await res.json();
+            if (!data.recordings || !data.recordings.length) {
+                container.innerHTML = '<p class="muted">No recordings yet.</p>';
+                return;
+            }
+            data.recordings.forEach(rec => {
+                const div = document.createElement('div');
+                div.className = 'history-card';
+                div.innerHTML = `
+                    <h4>${rec.filename}</h4>
+                    <div class="meta">${new Date(rec.created_at).toLocaleString()}${rec.care_recipient_id ? ' • Recipient: ' + rec.care_recipient_id : ''}</div>
+                `;
+                const controls = document.createElement('div');
+                controls.style.marginTop = '12px';
+                const playBtn = document.createElement('button');
+                playBtn.className = 'ghost-btn';
+                playBtn.textContent = 'Play';
+                playBtn.style.marginRight = '8px';
+                playBtn.addEventListener('click', () => playRecording(rec.id));
+                const dlBtn = document.createElement('button');
+                dlBtn.className = 'ghost-btn';
+                dlBtn.textContent = 'Download';
+                dlBtn.addEventListener('click', () => downloadRecording(rec.id, rec.filename));
+                controls.appendChild(playBtn);
+                controls.appendChild(dlBtn);
+                div.appendChild(controls);
+                container.appendChild(div);
+            });
+        } catch (err) {
+            console.error('Error fetching recordings', err);
+            container.innerHTML = '<p class="muted">Unable to load recordings.</p>';
+        }
+    }
+
+    async function playRecording(id) {
+        try {
+            const res = await fetch(`${API_BASE}/recordings/${id}/download`, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to fetch recording');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            audio.autoplay = true;
+            const container = document.getElementById('recordings-container');
+            const wrapper = document.createElement('div');
+            wrapper.appendChild(audio);
+            container.insertBefore(wrapper, container.firstChild);
+        } catch (err) {
+            console.error('Error playing recording', err);
+        }
+    }
+
+    async function downloadRecording(id, filename) {
+        try {
+            const res = await fetch(`${API_BASE}/recordings/${id}/download`, {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error('Failed to fetch recording for download');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || `recording_${id}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+        } catch (err) {
+            console.error('Error downloading recording', err);
+        }
+    }
+
+    function showRecording(filename, url, mimeType = 'audio/wav') {
+        const container = document.getElementById('recordings-container');
+        const div = document.createElement('div');
+        div.className = 'history-card';
+        div.innerHTML = `
+            <h4>${filename}</h4>
+            <div class="meta">Local session • ${selectedRecipientName}</div>
+            <audio controls style="width:100%;margin-top:12px;">
+                <source src="${url}" type="${mimeType}">
+            </audio>
+        `;
+        container.prepend(div);
+    }
+
+    function triggerDownload(url, filename) {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-    } catch (err) {
-        console.error(err);
-        alert('Error downloading report');
+        setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 0);
     }
-}
-</script>
+
+    fetchProfile();
+    fetchAndRenderRecordings();
+    renderMedicalSummary();
+    </script>
 </body>
 </html>
