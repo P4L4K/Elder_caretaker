@@ -121,6 +121,107 @@ def extract_text_from_bytes(b: bytes, mime: str = None) -> str:
         return ''
 
 
+def extract_clinical_findings(medical_text: str) -> str:
+    """Extract key clinical information from medical documents using Gemini.
+    
+    Focuses on:
+    - Diagnoses / diseases
+    - Symptoms and complaints
+    - Abnormal test results
+    - Important vitals (if high/low)
+    - Medications prescribed (with dose if mentioned)
+    - Relevant dates
+    - Doctor assessments or impressions
+    - Follow-up or recommended care
+    
+    Returns extracted findings without filler language.
+    """
+    if not medical_text:
+        return ''
+
+    api_key = os.environ.get('GEMINI_API_KEY')
+    
+    if not api_key or not requests:
+        print('[summarizer] Gemini API key not configured; cannot extract clinical findings')
+        return ''
+
+    clinical_extraction_prompt = """You are a clinical information extractor. Summarize the following medical documents into clear, precise medical findings.
+
+Focus ONLY on:
+• Diagnoses / diseases the patient has
+• Symptoms and complaints
+• Abnormal test results
+• Important vitals (if high/low)
+• Medications prescribed (with dose if mentioned)
+• Relevant dates
+• Doctor assessments or impressions
+• Any follow-up or recommended care
+
+Do NOT include filler language.
+Do NOT rewrite entire paragraphs.
+Do NOT add content not found in the report.
+Just extract key medical facts and present them clearly.
+
+Medical Document:
+{text}"""
+
+    try:
+        prompt = clinical_extraction_prompt.format(text=medical_text)
+        
+        # Use Google Generative AI library if available, otherwise fall back to REST API
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(prompt)
+            print('[summarizer] Clinical extraction via genai library successful')
+            return response.text if response.text else ''
+        except Exception as e:
+            print(f'[summarizer] genai library not available ({e}), trying REST API...')
+            
+            # Fall back to REST API
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            payload = {
+                'contents': [
+                    {
+                        'parts': [
+                            {
+                                'text': prompt
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}'
+            print(f'[summarizer] Calling Gemini REST API for clinical extraction')
+            resp = requests.post(url, json=payload, headers=headers, timeout=60)
+            print(f'[summarizer] Gemini response status: {resp.status_code}')
+            
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    # Extract text from Gemini response
+                    if 'candidates' in data and len(data['candidates']) > 0:
+                        candidate = data['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            parts = candidate['content']['parts']
+                            if len(parts) > 0 and 'text' in parts[0]:
+                                return parts[0]['text']
+                except Exception as e:
+                    print(f'[summarizer] Failed to parse Gemini response: {e}')
+                    return ''
+            else:
+                print(f'[summarizer] Gemini API returned status {resp.status_code}')
+                return ''
+                
+    except Exception as e:
+        print(f'[summarizer] Clinical extraction failed: {e}')
+        return ''
+
+
 def summarize_text_via_gemini(text: str, target_words: int = 250) -> str:
     """Call out to an external Gemini endpoint (config via env) to get a summary of approximately target_words.
     If not configured, fall back to a simple local summarizer.
@@ -157,38 +258,186 @@ def summarize_text_via_gemini(text: str, target_words: int = 250) -> str:
         return local_summary(text)
 
     try:
+        # Build the URL with API key as a query parameter
+        url = f"{endpoint}?key={api_key}"
+        
+        # Set up headers and payload according to Gemini API spec
         headers = {
-            'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json'
         }
-        # Use a general prompt wrapper in case the Gemini endpoint expects prompt-based input
-        prompt = f"Please provide a concise medical summary of the following documents in approximately {target_words} words. Focus on diagnoses, medications, findings, and relevant dates. Use short paragraphs.\n\nDocuments:\n{text}"
+        
+        # Log the input text for debugging
+        print(f'[summarizer] Input text length: {len(text)} characters')
+        if len(text) > 200:
+            print(f'[summarizer] Text preview: {text[:100]}...{text[-100:]}')
+        else:
+            print(f'[summarizer] Text: {text}')
+
+        # Format the prompt with the actual text - CONCISE VERSION
+        prompt = """You are a clinical information extractor and health-risk analyst.
+
+Extract ONLY the most critical medical information from the document.  
+Summarize concisely, suitable for quick understanding.
+
+========================
+[CLINICAL SUMMARY]
+========================
+
+Provide a short list of the key points under each heading:
+
+• Diagnoses: list the main disease(s) only.  
+• Symptoms / Complaints: list only the most significant symptoms.  
+• Important Vitals: only abnormal values (high/low/critical).  
+• Medications: list main medications with dosage if available.  
+• Follow-up Advice: summarize the most important advice in one line per item.
+
+Rules:
+- Keep it short, 1–2 bullet points per section.
+- Do NOT include filler or detailed explanations.
+- Skip any category with no information.
+
+========================
+[ROOM ENVIRONMENT]
+========================
+
+Based on the *Diagnoses*, provide ONLY these three recommendations in **short format**:
+
+1. Recommended Temperature Range (°C)  
+2. Recommended Relative Humidity Range (%)  
+3. Recommended Indoor Air Quality (PM2.5 / AQI)
+
+Rules:
+- Give general safe ranges if diagnosis is unclear.
+- Keep it extremely concise (1 line per item).
+
+========================
+Medical Document:
+{text}""".format(text=text.strip())
+        
+        # Structure the payload according to Gemini API spec
         payload = {
-            'prompt': prompt,
-            'max_tokens': 1500
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "maxOutputTokens": 2000,
+                "temperature": 0.2,
+                "topP": 0.8,
+                "topK": 40
+            }
         }
-        print(f'[summarizer] Calling Gemini endpoint {endpoint} (payload words approx {len(payload["prompt"].split())})')
-        resp = requests.post(endpoint, json=payload, headers=headers, timeout=60)
-        print(f'[summarizer] Gemini response status: {getattr(resp, "status_code", "?" )}')
+        
+        print(f'[summarizer] Calling Gemini endpoint {url} (payload words approx {len(prompt.split())})')
+        resp = requests.post(url, json=payload, headers=headers, timeout=60)
+        print(f'[summarizer] Gemini response status: {getattr(resp, "status_code", "?")}')
+        
         if resp.status_code == 200:
             try:
                 data = resp.json()
-            except Exception:
-                data = {}
-            # Try several common response keys
-            summary = data.get('summary') or data.get('output') or data.get('result') or data.get('text') or data.get('response')
-            if isinstance(summary, list):
-                summary = ' '.join(summary)
-            if not summary:
-                print('[summarizer] Gemini returned empty summary payload, falling back to local summary')
+                # Extract text from Gemini response
+                if 'candidates' in data and data['candidates']:
+                    candidate = data['candidates'][0]
+                    if 'content' in candidate and 'parts' in candidate['content']:
+                        parts = candidate['content']['parts']
+                        if parts and 'text' in parts[0]:
+                            full_response = parts[0]['text']
+                            
+                            # Split response into summary and thresholds
+                            if "ENVIRONMENTAL THRESHOLDS" in full_response:
+                                summary, thresholds_section = full_response.split("ENVIRONMENTAL THRESHOLDS", 1)
+                                thresholds = parse_environmental_thresholds("ENVIRONMENTAL THRESHOLDS" + thresholds_section)
+                                
+                                # Add thresholds to summary
+                                summary += "\n\nENVIRONMENTAL RECOMMENDATIONS:\n"
+                                if thresholds["temperature"]:
+                                    summary += f"• Temperature: {thresholds['temperature']}\n"
+                                if thresholds["humidity"]:
+                                    summary += f"• Humidity: {thresholds['humidity']}\n"
+                                if thresholds["air_quality"]:
+                                    summary += f"• Air Quality: {thresholds['air_quality']}\n"
+                                
+                                for rec in thresholds["additional_recommendations"]:
+                                    summary += f"• {rec}\n"
+                            else:
+                                summary = full_response
+                            
+                            # Return the full response without truncation
+                            print(f'[summarizer] Gemini produced {len(summary.split())} words')
+                            
+                            # Ensure proper line breaks for bullet points
+                            summary = summary.replace('•', '\n•')  # Add newline before each bullet
+                            summary = '\n'.join(line.strip() for line in summary.split('\n'))  # Clean up whitespace
+                            
+                            return summary
+            except Exception as e:
+                print(f'[summarizer] Failed to parse Gemini response: {e}')
                 return local_summary(text)
-            # Truncate to target_words
-            words = summary.split()
-            out = ' '.join(words[:min(len(words), target_words)])
-            print(f'[summarizer] Gemini produced {len(out.split())} words (truncated to {target_words})')
-            return out
-        else:
-            print('[summarizer] Gemini call failed, status not 200 — using local summary')
-            return local_summary(text)
-    except Exception:
+        
+        print(f'[summarizer] Gemini call failed with status {resp.status_code} — using local summary')
+        if hasattr(resp, 'text'):
+            print(f'[summarizer] Response text: {resp.text[:500]}...')  # Log first 500 chars of response
         return local_summary(text)
+        
+    except Exception as e:
+        print(f'[summarizer] Error in summarize_text_via_gemini: {str(e)}')
+        return local_summary(text)
+
+def parse_environmental_thresholds(thresholds_text: str) -> dict:
+    """Parse environmental thresholds from the Gemini response.
+    
+    Args:
+        thresholds_text: Raw text containing the environmental thresholds section
+        
+    Returns:
+        dict: Parsed thresholds with keys: temperature, humidity, air_quality, additional_recommendations
+    """
+    thresholds = {
+        "temperature": None,
+        "humidity": None,
+        "air_quality": None,
+        "additional_recommendations": []
+    }
+    
+    if not thresholds_text:
+        return thresholds
+    
+    # For the new concise format with numbered items
+    if '1. Recommended Temperature' in thresholds_text:
+        lines = thresholds_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith('1.'):
+                temp = line.split(':', 1)[-1].strip()
+                if '°C' not in temp and 'C' in temp:  # Handle case where ° is missing
+                    temp = temp.replace('C', '°C')
+                thresholds["temperature"] = temp
+            elif line.startswith('2.'):
+                thresholds["humidity"] = line.split(':', 1)[-1].strip()
+            elif line.startswith('3.'):
+                thresholds["air_quality"] = line.split(':', 1)[-1].strip()
+    else:
+        # Fallback to old format parsing
+        # Extract temperature (supports formats like "20-24°C" or "20°C to 24°C")
+        temp_match = re.search(r'(\d+)\s*°?C?\s*[\-\s]+\s*(\d+)\s*°?C', thresholds_text)
+        if temp_match:
+            min_temp, max_temp = temp_match.groups()
+            thresholds["temperature"] = f"{min_temp}°C - {max_temp}°C"
+        
+        # Extract humidity (supports formats like "40-55%" or "40% to 55%")
+        hum_match = re.search(r'(\d+)\s*[%]\s*[-\s]+\s*(\d+)\s*%', thresholds_text)
+        if hum_match:
+            min_hum, max_hum = hum_match.groups()
+            thresholds["humidity"] = f"{min_hum}% - {max_hum}%"
+        
+        # Extract air quality (looks for AQI or PM2.5 values)
+        aqi_match = re.search(r'(?:AQI|PM2\.5)\s*[:\-]?\s*([^.\n]+)', thresholds_text, re.IGNORECASE)
+        if aqi_match:
+            thresholds["air_quality"] = aqi_match.group(1).strip()
+    
+    return thresholds

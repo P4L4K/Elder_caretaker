@@ -1,7 +1,15 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+import os
+from dotenv import load_dotenv
 
-DATABASE_URL ="postgresql://postgres:word123@localhost:5432/caretaker"
+# Load environment variables from .env file
+load_dotenv()
+
+# Get database URL from environment variables
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set in .env file")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -17,21 +25,19 @@ def get_db():
     finally:
         db.close()
 
+# JWT Configuration
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is not set in .env file")
 
-#jwt
-SECRET_KEY = "crie"
-ALGORITHM ='HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 # Audio Pipeline Config
 AUDIO_CHUNK_SIZE = 4096
 AUDIO_CHANNELS = 1
 AUDIO_RATE = 44100
-AUDIO_FORMAT = "paInt16"  # Will map to pyaudio constant in capture.py
+AUDIO_FORMAT = "paInt16"
 AUDIO_VAD_THRESHOLD = 800
 AUDIO_MAX_SILENCE_CHUNKS = 30
 AUDIO_TARGET_SR = 16000
-
-
-
-
