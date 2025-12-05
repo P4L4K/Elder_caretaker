@@ -309,10 +309,14 @@ async def update_face(
 @router.post('/login', response_model=ResponseSchema)
 async def login(request: Login, db: Session = Depends(get_db)):
     try:
-        print(f"Login attempt for username: {request.username}")
+        print(f"\n=== Login Request ===")
+        print(f"Request data: {request.dict()}")
+        print(f"Database URL: {db.bind.url if hasattr(db, 'bind') else 'No DB connection'}")
         
         # Check if user exists
         user = UsersRepo.find_by_username(db, CareTaker, request.username)
+        print(f"User found: {user is not None}")
+        
         if not user:
             print(f"Login failed: User '{request.username}' not found")
             raise HTTPException(
@@ -320,7 +324,8 @@ async def login(request: Login, db: Session = Depends(get_db)):
                 detail="Incorrect username or password"
             )
 
-        # Verify password (plain text comparison for now)
+        print(f"Password check: {'passed' if user.password == request.password else 'failed'}")
+        
         if user.password != request.password:
             print(f"Login failed: Invalid password for user '{request.username}'")
             raise HTTPException(
@@ -334,6 +339,9 @@ async def login(request: Login, db: Session = Depends(get_db)):
             {"sub": user.username},
             expires_delta=access_token_expires
         )
+        
+        print("Login successful")
+        print("=================\n")
         
         print(f"Login successful for user: {user.username}")
         print(f"Generated token: {token[:10]}...")
@@ -357,12 +365,13 @@ async def login(request: Login, db: Session = Depends(get_db)):
         )
 
     except HTTPException as e:
-        print(f"HTTPException during login: {str(e)}")
+        print("Login failed with HTTPException")
+        print("=================\n")
         raise
     except Exception as e:
-        error_msg = f"Login failed: {str(e)}"
-        print(error_msg)
+        print(f"Unexpected error during login: {str(e)}")
+        print("=================\n")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=error_msg
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
         )

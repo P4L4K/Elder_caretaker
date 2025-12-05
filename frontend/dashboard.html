@@ -171,11 +171,29 @@ if (!token) {
     window.location.href = 'index.html';
 }
 
-// ADD LOGOUT FUNCTIONALITY AT THE TOP
-document.getElementById('logoutBtn').addEventListener('click', function() {
-    localStorage.removeItem('token');
-    window.location.href = 'index.html';
-});
+// Logout functionality
+function setupLogoutButton() {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        });
+    } else {
+        console.warn('Logout button not found');
+    }
+}
+
+// Initialize when DOM is fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        setupLogoutButton();
+        // Other initialization code...
+    });
+} else {
+    // DOM already loaded
+    setupLogoutButton();
+}
 
 document.getElementById('welcomeMsg').textContent = 'Logged in - audio monitoring ready.';
 // Backend API base (ensure this matches where your FastAPI app runs)

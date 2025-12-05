@@ -34,12 +34,21 @@ class VideoCaptureThread:
 
     def _update(self):
         while self.running:
-            ret, frame = self.cap.read()
-            if not ret:
+            try:
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
+                frame_time = self.frame_count / self.fps
+                try:
+                    # Add timeout to prevent hanging
+                    self.frame_queue.put((frame, frame_time), timeout=0.1)
+                    self.frame_count += 1
+                except queue.Full:
+                    # If queue is full, drop the frame
+                    continue
+            except Exception as e:
+                print(f"Error in video capture: {e}")
                 break
-            frame_time = self.frame_count / self.fps
-            self.frame_queue.put((frame, frame_time), timeout=1.0)
-            self.frame_count += 1
         self.cap.release()
 
     def read(self):

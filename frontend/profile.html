@@ -438,6 +438,10 @@
                     <span>History</span>
                     ➜
                 </button>
+                <button class="nav-chip" id="voiceBotBtn">
+                    <span>Voice Bot</span>
+                    ➜
+                </button>
             </div>
 
             <div>
@@ -457,8 +461,14 @@
                         <h1>Welcome back, <span id="caretakerName">—</span></h1>
                         <p class="muted">Stay close to every care recipient from a single, modern workspace.</p>
                     </div>
-                    <div class="status-pill">
-                        Logged in
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="status-pill">
+                            Logged in
+                        </div>
+                        <button id="logoutBtn" class="ghost-btn" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: #ef4444; padding: 6px 12px; border-radius: 20px; font-weight: 500; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-sign-out-alt" style="font-size: 0.9em;"></i>
+                            <span>Logout</span>
+                        </button>
                     </div>
                 </div>
 
@@ -480,6 +490,20 @@
                     </article>
                 </div>
             </section>
+
+            <!-- Add this Weather Widget Section -->
+            <section class="panel" id="weather-section">
+                <div class="panel-head">
+                    <div>
+                        <h2>Environment Conditions</h2>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div id="weather-widget-container"></div>
+                </div>
+            </section>
+
+            <section class="panel" id="audio-section">
 
             <section class="panel" id="audio-section">
                 <div class="panel-head">
@@ -522,14 +546,18 @@
                     <div>
                         <p class="eyebrow">Monitoring</p>
                         <h2>Video Monitoring</h2>
-                        
+                        <p class="muted">Monitor for falls and other activities using your webcam or upload a video file.</p>
                     </div>
-                    <div id="emotionStatus" class="status-pill">Status: Camera off</div>
+                    <div id="emotionStatus" class="status-pill">Status: Ready</div>
                 </div>
 
                 <div class="control-row">
-                    <button id="startEmotionMonitorBtn" class="primary-btn">Start Video Monitoring</button>
-                   
+                    <button id="startEmotionMonitorBtn" class="primary-btn">Start Webcam Monitoring</button>
+                    <div class="file-upload" style="position:relative; display:inline-block;">
+                        <a href="fall_detection.html" class="primary-btn" style="margin:0; cursor:pointer; text-decoration:none; color:white;">
+                            Upload Video for Fall Detection
+                        </a>
+                    </div>
                 </div>
 
                 <div class="grid-two" style="margin-top:24px; align-items:flex-start;">
@@ -537,6 +565,12 @@
                         <p class="eyebrow">Live camera</p>
                         <video id="emotionVideo" autoplay playsinline style="width:100%; max-width:520px; border-radius:20px; border:1px solid rgba(148,163,184,0.4); background:#000;"></video>
                     </article>
+                </div>
+                
+                <div id="fallDetectionResults" style="margin-top: 20px; display: none;">
+                    <h3>Fall Detection Results</h3>
+                    <div id="fallDetectionStatus" class="status-pill">Processing video...</div>
+                    <div id="fallDetectionOutput" style="margin-top: 15px;"></div>
                 </div>
             </section>
 
@@ -586,7 +620,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
     <script>
-    const API_BASE = 'http://127.0.0.1:8000';
+    const API_BASE = 'http://127.0.0.1:8000/api';
     const EMOTION_API_BASE = API_BASE + '/emotion';
     const token = localStorage.getItem('token');
 
@@ -1331,11 +1365,126 @@
     }
 
     // ==============================
-    // Video / Emotion Monitoring
+    // Video / Emotion Monitoring & Fall Detection
     // ==============================
 
+    // DOM elements for fall detection
+    const videoUpload = document.getElementById('videoUpload');
+    const fallDetectionResults = document.getElementById('fallDetectionResults');
+    const fallDetectionStatus = document.getElementById('fallDetectionStatus');
+    const fallDetectionOutput = document.getElementById('fallDetectionOutput');
+
+    // Fall detection API endpoint
+    const FALL_DETECTION_API = `${API_BASE}/api/fall-detection`;
+
+    // Initialize video monitoring button
     if (startEmotionMonitorBtn) {
         startEmotionMonitorBtn.addEventListener('click', toggleEmotionMonitoring);
+    }
+
+    // Handle video file upload for fall detection
+    if (videoUpload) {
+        videoUpload.addEventListener('change', handleVideoUpload);
+    }
+
+    /**
+     * Handles the video file upload for fall detection
+     * @param {Event} event - The file input change event
+     */
+    async function handleVideoUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Show loading state
+        fallDetectionResults.style.display = 'block';
+        fallDetectionStatus.textContent = 'Processing video...';
+        fallDetectionStatus.style.color = '#38bdf8';
+        fallDetectionOutput.innerHTML = '';
+
+        const formData = new FormData();
+        formData.append('file', file);  // Changed from 'video' to 'file' to match backend
+        
+        // Add recipient ID if one is selected
+        if (selectedRecipientId) {
+            formData.append('recipient_id', selectedRecipientId);
+        }
+
+        try {
+            // First, upload the video for processing
+            const response = await fetch(`${FALL_DETECTION_API}/process-video`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+                // Don't set Content-Type header - let the browser set it with the boundary
+            });
+            
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.detail || 'Failed to process video');
+            }
+
+            const result = await response.json();
+            
+            // If we get here, the request was successful
+            fallDetectionStatus.textContent = 'Video processed successfully!';
+            fallDetectionStatus.style.color = '#10b981';
+            
+            // Show the results
+            if (result.falls_detected && result.falls_detected.length > 0) {
+                fallDetectionOutput.innerHTML = `
+                    <div class="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                        <p class="font-bold">⚠️ Fall Detected!</p>
+                        <p>Falls detected: ${result.falls_detected.length}</p>
+                        <p>Confidence: ${(result.average_confidence * 100).toFixed(1)}%</p>
+                    </div>
+                `;
+                
+                // If we have a processed video URL, show a link to view it
+                if (result.processed_video_url) {
+                    const videoUrl = new URL(result.processed_video_url, window.location.origin).href;
+                    fallDetectionOutput.innerHTML += `
+                        <div class="mt-4">
+                            <a href="${videoUrl}" target="_blank" 
+                               class="inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                                View Processed Video
+                            </a>
+                        </div>
+                    `;
+                }
+            } else {
+                fallDetectionOutput.innerHTML = `
+                    <div class="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+                        <p>✅ No falls detected in the video.</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error processing video:', error);
+            fallDetectionStatus.textContent = `Error: ${error.message}`;
+            fallDetectionStatus.style.color = '#ef4444';
+        } finally {
+            // Reset the file input
+            event.target.value = '';
+        }
+    }
+
+    /**
+     * Helper function to download the processed video
+     * @param {string} url - The URL of the video to download
+     * @param {string} filename - The filename to use for the downloaded file
+     */
+    function downloadVideo(url, filename) {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            if (a.parentNode) a.parentNode.removeChild(a);
+        }, 0);
     }
 
     async function toggleEmotionMonitoring() {
@@ -1365,7 +1514,6 @@
             emotionStatusEl.textContent = 'Status: Camera on - analyzing…';
 
             if (emotionCaptureInterval) clearInterval(emotionCaptureInterval);
-            emotionCaptureInterval = setInterval(captureAndSendEmotionFrame, 2000);
         } catch (err) {
             console.error('Error starting emotion monitoring:', err);
             emotionStatusEl.textContent = 'Status: Failed to access camera';
@@ -1427,9 +1575,27 @@
         }
     }
 
+    // Add click handler for Voice Bot button
+    document.getElementById('voiceBotBtn')?.addEventListener('click', () => {
+        window.open('voice_bot.html', '_blank');
+    });
+
+    // Add click handler for Logout button
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+        localStorage.removeItem('token');
+        window.location.href = 'index.html';
+    });
+
     fetchProfile();
     fetchAndRenderRecordings();
     renderMedicalSummary();
+    </script>
+    <!-- Add these script tags right before the closing </body> tag -->
+    <script src="/js/weatherWidget.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            new WeatherWidget('weather-widget-container', 'http://127.0.0.1:8000/api');
+        });
     </script>
 </body>
 </html>

@@ -279,10 +279,6 @@ def summarize_text_via_gemini(text: str, target_words: int = 250) -> str:
 Extract ONLY the most critical medical information from the document.  
 Summarize concisely, suitable for quick understanding.
 
-========================
-[CLINICAL SUMMARY]
-========================
-
 Provide a short list of the key points under each heading:
 
 • Diagnoses: list the main disease(s) only.  
@@ -295,10 +291,8 @@ Rules:
 - Keep it short, 1–2 bullet points per section.
 - Do NOT include filler or detailed explanations.
 - Skip any category with no information.
+- Don't include unnecessary symbols like "*" in the final answer keep it professional 
 
-========================
-[ROOM ENVIRONMENT]
-========================
 
 Based on the *Diagnoses*, provide ONLY these three recommendations in **short format**:
 
@@ -309,7 +303,7 @@ Based on the *Diagnoses*, provide ONLY these three recommendations in **short fo
 Rules:
 - Give general safe ranges if diagnosis is unclear.
 - Keep it extremely concise (1 line per item).
-
+- Don't include unnecessary symbols like "*" in the final answer keep it professional 
 ========================
 Medical Document:
 {text}""".format(text=text.strip())

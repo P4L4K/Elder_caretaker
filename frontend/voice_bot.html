@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediVoice Assistant</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --bg-alt: #1e293b;
+            --card: #ffffff;
+            --card-alt: #f8fafc;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --accent: #3b82f6;
+            --accent-2: #2563eb;
+            --border: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #1e293b;
+        }
+
+        /* Custom scrollbar for chat */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-scroll::-webkit-scrollbar-track {
+            background: var(--bg-alt);
+        }
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background-color: var(--accent);
+            border-radius: 20px;
+        }
+
+        /* Override Tailwind's default colors */
+        .bg-white {
+            background-color: var(--card) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .text-slate-700 {
+            color: #1e293b !important;
+        }
+
+        .text-slate-400, .text-slate-500 {
+            color: #64748b !important;
+        }
+
+        .border, .border-slate-100, .border-slate-200 {
+            border-color: #e2e8f0 !important;
+        }
+
+        .bg-slate-50, .bg-slate-100 {
+            background-color: #f8fafc !important;
+        }
+
+        .bg-yellow-50 {
+            background-color: #fffbeb !important;
+            border-color: #fef3c7 !important;
+            color: #92400e !important;
+        }
+
+        .text-yellow-800 {
+            color: #92400e !important;
+        }
+
+        .bg-indigo-500, .bg-blue-500 {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
+
+        .bg-teal-600, .bg-teal-500 {
+            background-color: #0d9488 !important;
+            color: white !important;
+        }
+
+        .bg-red-50 {
+            background-color: #fef2f2 !important;
+            border-color: #fecaca !important;
+            color: #991b1b !important;
+        }
+
+        .bg-red-600, .bg-red-500 {
+            background-color: #dc2626 !important;
+            color: white !important;
+        }
+
+        .bg-teal-600 {
+            background-color: var(--accent) !important;
+        }
+
+        .text-white {
+            color: #1e293b !important;
+        }
+
+        /* Chat message styling */
+        .message-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            margin-bottom: 0.75rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: #3b82f6;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.25rem;
+        }
+
+        .bot-message {
+            background-color: #f8fafc;
+            color: #1e293b;
+            margin-right: auto;
+            border-bottom-left-radius: 0.25rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Input and form elements */
+        input, textarea, select {
+            background-color: white !important;
+            color: #1e293b !important;
+            border: 1px solid #e2e8f0 !important;
+            padding: 0.75rem 1rem !important;
+            border-radius: 0.5rem !important;
+            transition: all 0.2s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
+            outline: none;
+        }
+
+        /* Buttons */
+        button:not(.emergency-btn) {
+            transition: all 0.2s !important;
+        }
+
+        button:not(.emergency-btn):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .emergency-btn {
+            background-color: #dc2626 !important;
+            color: white !important;
+            border: none !important;
+        }
+
+        .emergency-btn:hover {
+            background-color: #b91c1c !important;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.5);
+        }
+
+        input, textarea, select {
+            background-color: var(--bg-alt) !important;
+            border-color: var(--border) !important;
+            color: var(--text) !important;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2) !important;
+        }
+
+        .shadow-sm {
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important;
+        }
+    </style>
+</head>
+<body id="body" class="min-h-screen font-sans antialiased bg-slate-900 text-gray-800">
+
+    <!-- Header -->
+    <header id="header" class="bg-teal-600 p-4 shadow-lg transition-colors duration-500" style="background-color: var(--accent); color: var(--text);">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="activity" class="h-6 w-6"></i>
+                <h1 class="text-xl font-bold">MediVoice Pro</h1>
+            </div>
+            <div id="emergency-badge" class="hidden flex items-center px-4 py-1 rounded-full animate-pulse font-bold" style="background-color: var(--danger); color: white;">
+                <i data-lucide="alert-circle" class="h-4 w-4 mr-2"></i>
+                EMERGENCY MODE
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column: Vitals & Tools -->
+        <div class="lg:col-span-1 space-y-4">
+            
+            <!-- Vitals Card -->
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+                <h2 class="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-4">Sensor Status</h2>
+                <div class="space-y-4">
+                    <!-- Heart Rate -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="heart" class="h-5 w-5 text-rose-500"></i>
+                            <span class="text-sm text-slate-600">Heart Rate</span>
+                        </div>
+                        <span class="font-bold text-slate-800"><span id="val-hr">--</span> <span class="text-xs text-slate-400">bpm</span></span>
+                    </div>
+                    <!-- BP -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="activity" class="h-5 w-5 text-blue-500"></i>
+                            <span class="text-sm text-slate-600">BP</span>
+                        </div>
+                        <span class="font-bold text-slate-800" id="val-bp">--/--</span>
+                    </div>
+                    <!-- Oxygen -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="droplet" class="h-5 w-5 text-cyan-500"></i>
+                            <span class="text-sm text-slate-600">SpO2 (Oxygen)</span>
+                        </div>
+                        <span class="font-bold text-slate-800"><span id="val-o2">--</span>%</span>
+                    </div>
+                    <!-- Sleep Score -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="moon" class="h-5 w-5 text-indigo-500"></i>
+                            <span class="text-sm text-slate-600">Sleep Score</span>
+                        </div>
+                        <span class="font-bold text-slate-800"><span id="val-sleep">--</span>/100</span>
+                    </div>
+                    <!-- Temp -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="thermometer" class="h-5 w-5 text-amber-500"></i>
+                            <span class="text-sm text-slate-600">Temp</span>
+                        </div>
+                        <span class="font-bold text-slate-800"><span id="val-temp">--</span>°F</span>
+                    </div>
+                    <!-- BMI -->
+                    <div class="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="calculator" class="h-5 w-5 text-purple-500"></i>
+                            <span class="text-sm text-slate-600">BMI</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-bold text-slate-800 block" id="val-bmi">--</span>
+                            <span class="text-[10px] text-slate-400" id="val-hw">H:-- W:--</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 text-right pt-2 border-t border-slate-50">Updated: <span id="last-updated">--</span></p>
+                </div>
+            </div>
+
+            <!-- Reminders Card -->
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+                <h2 class="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="clock" class="h-4 w-4"></i> Active Reminders
+                </h2>
+                <div id="reminders-list" class="space-y-2 max-h-40 overflow-y-auto">
+                    <!-- Reminders injected here -->
+                    <p class="text-sm text-slate-400 italic" id="no-reminders-msg">No active reminders.</p>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="space-y-2">
+                <button onclick="triggerEmergency()" class="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl flex items-center justify-center space-x-2 transition-colors border border-red-200 cursor-pointer">
+                    <i data-lucide="alert-circle" class="h-5 w-5"></i>
+                    <span class="font-semibold">Trigger Emergency</span>
+                </button>
+                <button onclick="handleUserMessage('Call my caretaker')" class="w-full py-3 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center space-x-2 transition-colors border border-teal-200 cursor-pointer">
+                    <i data-lucide="phone" class="h-5 w-5"></i>
+                    <span class="font-semibold">Call Caretaker</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Chat Interface -->
+        <div class="lg:col-span-2 flex flex-col h-[650px] bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden relative">
+            
+            <!-- Chat Messages Area -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 chat-scroll">
+                <!-- Messages injected here -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 bg-white border-t border-slate-100 relative">
+                
+                <!-- Listening Indicator -->
+                <div id="listening-indicator" class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-teal-600 text-white px-6 py-2 rounded-full text-sm font-medium animate-bounce shadow-lg flex items-center gap-2">
+                    <i data-lucide="mic" class="h-4 w-4 animate-pulse"></i> Listening...
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button id="mic-btn" onclick="toggleListening()" class="p-4 rounded-full transition-all duration-300 transform bg-teal-600 hover:bg-teal-700 shadow-teal-200 shadow-md text-white cursor-pointer">
+                        <i data-lucide="mic" class="h-6 w-6"></i>
+                    </button>
+
+                    <form onsubmit="handleManualSubmit(event)" class="flex-1 flex gap-2">
+                        <input type="text" id="user-input" placeholder="Try: 'Check moisture', 'Play music', 'Am I at risk of sores?'" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+                        <button type="submit" class="p-3 bg-slate-100 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors cursor-pointer">
+                            <i data-lucide="send" class="h-5 w-5"></i>
+                        </button>
+                    </form>
+                </div>
+                <p class="text-center text-xs text-slate-400 mt-2">
+                    Microphone access required.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- State Management ---
+        let state = {
+            isListening: false,
+            emergencyMode: false,
+            messages: JSON.parse(localStorage.getItem('healthBotMessages')) || [
+                { id: 1, sender: 'bot', text: "Hello! I am your personal health companion. I can monitor your sensors, contact your caregiver, or just chat. How are you feeling?" }
+            ],
+            vitals: JSON.parse(localStorage.getItem('healthBotVitals')) || {
+                heartRate: 72,
+                bloodPressure: '120/80',
+                temperature: 98.6,
+                oxygen: 98,
+                sleepScore: 85,
+                weight: 70,
+                height: 175,
+                bmi: 22.9,
+                lastUpdated: new Date().toLocaleTimeString()
+            },
+            reminders: JSON.parse(localStorage.getItem('healthBotReminders')) || []
+        };
+
+        // --- Speech Setup ---
+        const synth = window.speechSynthesis;
+        let recognition = null;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                handleUserMessage(transcript);
+                setListening(false);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                setListening(false);
+            };
+
+            recognition.onend = () => {
+                setListening(false);
+            };
+        }
+
+        // --- Core Functions ---
+
+        function init() {
+            lucide.createIcons();
+            renderVitals();
+            renderReminders();
+            renderMessages();
+            
+            setInterval(() => {
+                const now = Date.now();
+                let changed = false;
+                state.reminders = state.reminders.filter(reminder => {
+                    if (reminder.time <= now) {
+                        const alertText = `Reminder: ${reminder.text}`;
+                        addMessage('bot', alertText);
+                        speak(alertText);
+                        changed = true;
+                        return false; 
+                    }
+                    return true;
+                });
+                if (changed) {
+                    saveData();
+                    renderReminders();
+                }
+            }, 1000);
+        }
+
+        function saveData() {
+            localStorage.setItem('healthBotMessages', JSON.stringify(state.messages));
+            localStorage.setItem('healthBotVitals', JSON.stringify(state.vitals));
+            localStorage.setItem('healthBotReminders', JSON.stringify(state.reminders));
+        }
+
+        function setListening(status) {
+            state.isListening = status;
+            const indicator = document.getElementById('listening-indicator');
+            const btn = document.getElementById('mic-btn');
+            
+            if (status) {
+                indicator.classList.remove('hidden');
+                btn.classList.remove('bg-teal-600', 'hover:bg-teal-700', 'shadow-teal-200');
+                btn.classList.add('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
+                btn.innerHTML = '<i data-lucide="mic-off" class="h-6 w-6"></i>';
+            } else {
+                indicator.classList.add('hidden');
+                btn.classList.add('bg-teal-600', 'hover:bg-teal-700', 'shadow-teal-200');
+                btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'shadow-red-200', 'scale-110');
+                btn.innerHTML = '<i data-lucide="mic" class="h-6 w-6"></i>';
+            }
+            lucide.createIcons();
+        }
+
+        function toggleListening() {
+            if (!recognition) {
+                alert("Speech recognition not supported in this browser.");
+                return;
+            }
+            if (state.isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                setListening(true);
+            }
+        }
+
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = synth.getVoices();
+            const preferred = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha'));
+            if (preferred) utterance.voice = preferred;
+            synth.speak(utterance);
+        }
+
+        // --- EXTENDED LOGIC & COMMANDS ---
+
+        function processCommand(text) {
+            const lowerText = text.toLowerCase();
+            let response = "";
+            let updatedVitals = false;
+
+            // 1. HEALTH MONITORING & SENSORS
+            if (lowerText.includes('vitals') || lowerText.includes('how am i doing')) {
+                response = `Current Status: HR ${state.vitals.heartRate}, BP ${state.vitals.bloodPressure}, Oxygen ${state.vitals.oxygen}%, Temp ${state.vitals.temperature}°F. You are stable.`;
+            }
+            else if (lowerText.includes('oxygen') || lowerText.includes('o2') || lowerText.includes('saturation')) {
+                response = `Your oxygen saturation is ${state.vitals.oxygen}%. This is within the normal range.`;
+            }
+            else if (lowerText.includes('moisture') || lowerText.includes('wet') || lowerText.includes('sweat')) {
+                response = "Bed moisture sensors read 12%. No excessive sweating or moisture detected.";
+            }
+            else if (lowerText.includes('pressure') || lowerText.includes('sore') || lowerText.includes('ulcer')) {
+                response = "Pressure mapping scan complete. Weight distribution is even. No high-risk pressure points detected.";
+            }
+            else if (lowerText.includes('breathing') || lowerText.includes('respiration')) {
+                response = "Monitoring breathing... Respiratory rate is steady at 16 breaths per minute.";
+            }
+
+            // 2. CAREGIVER COMMUNICATION
+            else if (lowerText.includes('call caretaker') || lowerText.includes('call caregiver') || lowerText.includes('call my')) {
+                response = "Initiating video call to your primary caregiver... Please wait.";
+            }
+            else if (lowerText.includes('send') && (lowerText.includes('report') || lowerText.includes('alert'))) {
+                response = "I have sent your current vitals report and an alert to Dr. Smith.";
+            }
+            else if (lowerText.includes('share') && lowerText.includes('family')) {
+                response = "Today's summary has been shared with your family group.";
+            }
+
+            // 3. REPORTS
+            else if (lowerText.includes('daily report') || lowerText.includes('summary')) {
+                response = "Daily Report: Average HR 72, Sleep 7.5hrs, Movement Score 8/10. Overall trend is positive.";
+            }
+            else if (lowerText.includes('trend') || lowerText.includes('compare')) {
+                response = "Your blood pressure is lower this week compared to last week. Keep up the good work.";
+            }
+
+            // 4. MENTAL & EMOTIONAL SUPPORT
+            else if (lowerText.includes('talk') || lowerText.includes('chat') || lowerText.includes('lonely')) {
+                const replies = [
+                    "I'm here for you. Tell me, what was the best part of your day?",
+                    "I'm listening. How are you feeling right now?",
+                    "Let's chat. Did you see anything interesting on TV today?"
+                ];
+                response = replies[Math.floor(Math.random() * replies.length)];
+            }
+            else if (lowerText.includes('joke') || lowerText.includes('riddle')) {
+                response = "Here's one: What has to be broken before you can use it? An egg!";
+            }
+            else if (lowerText.includes('stressed') || lowerText.includes('relax')) {
+                response = "I detect some tension. Let's try a breathing exercise. Inhale for 4 seconds... hold... and exhale.";
+            }
+            else if (lowerText.includes('game') || lowerText.includes('brain')) {
+                response = "Let's play a memory game. I'll say three words, and you repeat them: Apple, Train, Window.";
+            }
+
+            // 5. ENTERTAINMENT
+            else if (lowerText.includes('music') || lowerText.includes('playlist') || lowerText.includes('song')) {
+                response = "Playing your 'Evening Relaxation' playlist on the bedside speaker.";
+            }
+            else if (lowerText.includes('story')) {
+                response = "Reading 'The Happy Prince' by Oscar Wilde. 'High above the city, on a tall column...'";
+            }
+
+            // 6. MOVEMENT & SLEEP
+            else if (lowerText.includes('still') || lowerText.includes('posture') || lowerText.includes('change side')) {
+                response = "You have been in the same position for 90 minutes. I suggest shifting to your left side.";
+            }
+            else if (lowerText.includes('sleep cycle') || lowerText.includes('snore')) {
+                response = `Last night you had a Sleep Score of ${state.vitals.sleepScore}. You spent 2 hours in deep sleep. No snoring detected.`;
+            }
+            else if (lowerText.includes('wake me')) {
+                response = "Alarm set for 7:00 AM with a gentle sunrise sequence.";
+            }
+
+            // 7. EMERGENCY & SAFETY
+            else if (lowerText.includes('emergency') || lowerText.includes('help me') || lowerText.includes('911') || lowerText.includes('dizzy')) {
+                toggleEmergencyMode(true);
+                response = "EMERGENCY ALERT TRIGGERED. Notifying caregiver and emergency services. Stay calm, help is on the way.";
+            }
+
+            // 8. ROUTINE & REMINDERS (Existing Logic + Updates)
+            else if (lowerText.includes('remind me')) {
+                const timeMatch = lowerText.match(/in (\d+) (second|minute|hour)/);
+                const actionMatch = lowerText.match(/remind me to (.+?) in/);
+                
+                if (timeMatch && actionMatch) {
+                    const amount = parseInt(timeMatch[1]);
+                    const unit = timeMatch[2];
+                    const action = actionMatch[1];
+                    let ms = amount * 1000;
+                    if (unit.startsWith('minute')) ms *= 60;
+                    if (unit.startsWith('hour')) ms *= 3600;
+
+                    const reminderTime = Date.now() + ms;
+                    state.reminders.push({ 
+                        id: Date.now(), 
+                        text: action, 
+                        time: reminderTime, 
+                        displayTime: new Date(reminderTime).toLocaleTimeString() 
+                    });
+                    saveData();
+                    renderReminders();
+                    response = `Reminder set: I will alert you to ${action} in ${amount} ${unit}s.`;
+                } else {
+                    response = "I didn't catch the time. Try 'Remind me to drink water in 10 minutes'.";
+                }
+            }
+
+            // 9. SYSTEM CONTROL
+            else if (lowerText.includes('sensitivity') || lowerText.includes('microphone')) {
+                response = "Microphone sensitivity increased to High.";
+            }
+            else if (lowerText.includes('spectrogram')) {
+                response = "Switching display to Spectrogram Mode for detailed sensor analysis.";
+            }
+            else if (lowerText.includes('restart') || lowerText.includes('reset')) {
+                if(lowerText.includes('monitoring')) response = "Restarting sensor array... All systems Green.";
+                else {
+                     localStorage.clear();
+                     window.location.reload();
+                     return;
+                }
+            }
+
+            // 10. PERSONALIZED AI
+            else if (lowerText.includes('learn') || lowerText.includes('routine')) {
+                response = "I am observing your daily patterns to optimize wake-up times and medication reminders.";
+            }
+            else if (lowerText.includes('thank')) {
+                response = "You're welcome. I am learning to serve you better every day.";
+            }
+
+            // STANDARD VITALS LOGGING (Existing)
+            else if (lowerText.includes('bmi') || (lowerText.includes('height') && lowerText.includes('weight'))) {
+                const hMatch = lowerText.match(/height (\d+)/);
+                const wMatch = lowerText.match(/weight (\d+)/);
+                if (hMatch && wMatch) {
+                    const h = parseInt(hMatch[1]);
+                    const w = parseInt(wMatch[1]);
+                    const bmi = (w / ((h/100)*(h/100))).toFixed(1);
+                    state.vitals.bmi = bmi;
+                    state.vitals.height = h;
+                    state.vitals.weight = w;
+                    updatedVitals = true;
+                    response = `Your BMI is ${bmi}.`;
+                }
+            }
+            else if (lowerText.includes('heart rate') || lowerText.includes('pulse')) {
+                const nums = lowerText.match(/\d+/);
+                if (nums) {
+                    state.vitals.heartRate = parseInt(nums[0]);
+                    updatedVitals = true;
+                    response = `Logged heart rate: ${nums[0]} bpm.`;
+                }
+            }
+            else if (lowerText.includes('blood pressure') || lowerText.includes('bp')) {
+                const nums = lowerText.match(/(\d{2,3})\s*(?:over|\/)\s*(\d{2,3})/);
+                if (nums) {
+                    state.vitals.bloodPressure = `${nums[1]}/${nums[2]}`;
+                    updatedVitals = true;
+                    response = `Logged BP: ${nums[1]}/${nums[2]}.`;
+                }
+            }
+            else if (lowerText.includes('temperature') || lowerText.includes('fever')) {
+                const nums = lowerText.match(/\d+(\.\d+)?/);
+                if (nums) {
+                    state.vitals.temperature = parseFloat(nums[0]);
+                    updatedVitals = true;
+                    response = `Recorded temp: ${nums[0]}°F.`;
+                }
+            }
+            else if (lowerText.includes('hello') || lowerText.includes('hi')) {
+                response = "Hello! I can check your sensors, moisture levels, or just keep you company.";
+            }
+            else {
+                response = "I didn't quite catch that. You can ask me to check vitals, tell a story, or call your caregiver.";
+            }
+
+            if (updatedVitals) {
+                state.vitals.lastUpdated = new Date().toLocaleTimeString();
+                saveData();
+                renderVitals();
+            }
+
+            return response;
+        }
+
+        function handleUserMessage(text) {
+            if (!text.trim()) return;
+            addMessage('user', text);
+            
+            setTimeout(() => {
+                const botResponse = processCommand(text);
+                addMessage('bot', botResponse);
+                speak(botResponse);
+            }, 500);
+        }
+
+        function handleManualSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('user-input');
+            handleUserMessage(input.value);
+            input.value = '';
+        }
+
+        function triggerEmergency() {
+            handleUserMessage("Emergency");
+        }
+
+        // --- UI Rendering ---
+
+        function addMessage(sender, text) {
+            state.messages.push({ id: Date.now(), sender, text });
+            saveData();
+            renderMessages();
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('chat-container');
+            container.innerHTML = state.messages.map(msg => `
+                <div class="flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}">
+                    <div class="flex max-w-[80%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-2">
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.sender === 'user' ? 'bg-indigo-500' : 'bg-teal-600'} text-white shadow-sm">
+                            <i data-lucide="${msg.sender === 'user' ? 'user' : 'bot'}" class="w-4 h-4"></i>
+                        </div>
+                        <div class="p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                            msg.sender === 'user' 
+                            ? 'bg-indigo-500 text-white rounded-tr-none' 
+                            : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+                        }">
+                            ${msg.text}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderVitals() {
+            document.getElementById('val-hr').innerText = state.vitals.heartRate;
+            document.getElementById('val-bp').innerText = state.vitals.bloodPressure;
+            document.getElementById('val-temp').innerText = state.vitals.temperature;
+            document.getElementById('val-bmi').innerText = state.vitals.bmi;
+            document.getElementById('val-o2').innerText = state.vitals.oxygen;
+            document.getElementById('val-sleep').innerText = state.vitals.sleepScore;
+            document.getElementById('val-hw').innerText = `H:${state.vitals.height} W:${state.vitals.weight}`;
+            document.getElementById('last-updated').innerText = state.vitals.lastUpdated;
+        }
+
+        function renderReminders() {
+            const list = document.getElementById('reminders-list');
+            if (state.reminders.length === 0) {
+                list.innerHTML = '<p class="text-sm text-slate-400 italic">No active reminders.</p>';
+            } else {
+                list.innerHTML = state.reminders.map(rem => `
+                    <div class="flex justify-between items-center bg-yellow-50 p-2 rounded-lg border border-yellow-100">
+                        <div class="text-xs text-yellow-800">
+                            <span class="font-bold block">${rem.text}</span>
+                            <span class="opacity-75">${rem.displayTime}</span>
+                        </div>
+                        <button onclick="deleteReminder(${rem.id})" class="text-yellow-600 hover:text-red-500 p-1 cursor-pointer">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+        }
+
+        function deleteReminder(id) {
+            state.reminders = state.reminders.filter(r => r.id !== id);
+            saveData();
+            renderReminders();
+        }
+
+        async function sendEmergencyEmail() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/emergency/alert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                    body: JSON.stringify({
+                        message: 'EMERGENCY ALERT: Immediate attention required!',
+                        timestamp: new Date().toISOString(),
+                        location: window.location.href
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to send emergency email');
+                }
+            } catch (error) {
+                console.error('Error sending emergency email:', error);
+            }
+        }
+
+        function toggleEmergencyMode(active) {
+            state.emergencyMode = active;
+            const body = document.getElementById('body');
+            const header = document.getElementById('header');
+            const badge = document.getElementById('emergency-badge');
+
+            if (active) {
+                body.classList.remove('bg-slate-50');
+                body.classList.add('bg-red-50');
+                header.classList.remove('bg-teal-600');
+                header.classList.add('bg-red-600');
+                badge.classList.remove('hidden');
+                
+                // Send emergency email notification
+                sendEmergencyEmail();
+            } else {
+                body.classList.add('bg-slate-50');
+                body.classList.remove('bg-red-50');
+                header.classList.add('bg-teal-600');
+                header.classList.remove('bg-red-600');
+                badge.classList.add('hidden');
+            }
+        }
+
+        // Initialize on load
+        window.onload = init;
+    </script>
+</body>
+</html>
