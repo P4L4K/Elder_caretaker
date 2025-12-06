@@ -13,8 +13,8 @@ class WeatherPredictionModel:
     def __init__(self, api_key, city):
         self.api_key = api_key
         self.city = city
-        # UPDATED: WeatherAPI.com Base URL
-        self.base_url = "http://api.weatherapi.com/v1/forecast.json"
+        # UPDATED: WeatherAPI.com Base URL - Using HTTPS
+        self.base_url = "https://api.weatherapi.com/v1/forecast.json"
         self.headers = {'User-Agent': 'WeatherPredictor/2.0'}
 
         # UPDATED: Thresholds for Alerts (US EPA Index 1-6 used by WeatherAPI)
@@ -35,7 +35,12 @@ class WeatherPredictionModel:
         """
         Fetches Current, Forecast, AQI, and Alerts in a SINGLE call.
         WeatherAPI.com structure allows this via the 'days' and 'aqi' params.
+        Returns None if there's an error.
         """
+        if not self.api_key:
+            print("Error: Weather API key not configured")
+            return None
+
         params = {
             'key': self.api_key,
             'q': self.city,
@@ -45,20 +50,34 @@ class WeatherPredictionModel:
         }
 
         try:
-            response = requests.get(self.base_url, params=params, headers=self.headers)
+            response = requests.get(
+                self.base_url, 
+                params=params, 
+                headers=self.headers,
+                timeout=10  # Add timeout to prevent hanging
+            )
             response.raise_for_status()
             return response.json()
+            
         except requests.exceptions.HTTPError as e:
-            if response.status_code == 400:
-                print("Error: Location not found or invalid API Key.")
-            elif response.status_code == 401:
-                print("Error: Unauthorized. Check your WeatherAPI.com API Key.")
-            else:
-                print(f"HTTP Error: {e}")
-            sys.exit(1)
+            error_msg = f"Weather API error: {str(e)}"
+            if hasattr(e.response, 'status_code'):
+                if e.response.status_code == 400:
+                    error_msg = "Error: Invalid location or request parameters"
+                elif e.response.status_code == 401:
+                    error_msg = "Error: Unauthorized. Please check your WeatherAPI.com API Key."
+                elif e.response.status_code == 429:
+                    error_msg = "Error: API rate limit exceeded. Please try again later."
+            print(error_msg)
+            return None
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Weather service connection error: {str(e)}")
+            return None
+            
         except Exception as e:
-            print(f"Connection Error: {e}")
-            sys.exit(1)
+            print(f"Unexpected error fetching weather data: {str(e)}")
+            return None
 
     def analyze_conditions(self, data):
         """Parses WeatherAPI.com JSON structure for current conditions."""

@@ -521,6 +521,10 @@
                         <span>Total coughs</span>
                         <strong id="coughCount">0</strong>
                     </div>
+                    <div class="stat-pill">
+                        <span>Total snores</span>
+                        <strong id="snoreCount">0</strong>
+                    </div>
                 </div>
 
                 <div class="wave-shell">
@@ -967,6 +971,10 @@
     let coughStartTime = null;
     let coughRecordingTimeout = null;
     let coughCount = 0;
+    let snoreDetectionActive = false;
+    let snoreStartTime = null;
+    let snoreRecordingTimeout = null;
+    let snoreCount = 0;
     const AUTO_DOWNLOAD = false;
     const startBtn = document.getElementById('startBtn');
     const statusEl = document.getElementById('status');
@@ -1005,9 +1013,14 @@
             source.connect(analyser);
             drawWaveform();
 
-            const coughLabel = 'COUGH';
-            const coughIndex = labels.indexOf(coughLabel);
-            const coughScoreThreshold = 0.65;
+            const labelMap = {};
+            labels.forEach((label, index) => {
+                labelMap[label.toLowerCase()] = index;
+            });
+            
+            const coughIndex = labelMap['cough'] !== undefined ? labelMap['cough'] : -1;
+            const snoreIndex = labelMap['snore'] !== undefined ? labelMap['snore'] : -1;
+            const detectionThreshold = 0.65;
 
             recognizer.listen(result => {
                 const scores = result.scores;
@@ -1018,13 +1031,22 @@
                 });
 
                 const coughScore = coughIndex >= 0 ? scores[coughIndex] : 0;
-                if (!coughDetectionActive) {
-                    statusEl.textContent = `Listening… (Cough: ${coughScore.toFixed(2)})`;
+                const snoreScore = snoreIndex >= 0 ? scores[snoreIndex] : 0;
+                
+                if (!coughDetectionActive && !snoreDetectionActive) {
+                    statusEl.textContent = `Listening… (Cough: ${coughScore.toFixed(2)} | Snore: ${snoreScore.toFixed(2)})`;
                     statusEl.style.color = '#38bdf8';
                 }
 
-                if (coughScore >= coughScoreThreshold) {
-                    addSessionPrediction({ score: coughScore, timestamp: Date.now(), recipient_id: selectedRecipientId, recipient_name: selectedRecipientName });
+                if (coughScore >= detectionThreshold) {
+                    addSessionPrediction({ 
+                        type: 'cough',
+                        score: coughScore, 
+                        timestamp: Date.now(), 
+                        recipient_id: selectedRecipientId, 
+                        recipient_name: selectedRecipientName 
+                    });
+                    
                     if (!coughDetectionActive) {
                         coughDetectionActive = true;
                         coughStartTime = Date.now();
@@ -1033,12 +1055,45 @@
                         statusEl.textContent = `🚨 Cough #${coughCount} detected! (${coughScore.toFixed(2)}) - Recording…`;
                         statusEl.style.color = '#fb7185';
                         if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
-                        coughRecordingTimeout = setTimeout(() => saveCoughRecording(coughScore), MIN_RECORDING_DURATION);
+                        coughRecordingTimeout = setTimeout(() => saveDetectionRecording('cough', coughScore), MIN_RECORDING_DURATION);
                     } else {
                         const elapsed = Date.now() - coughStartTime;
                         if (elapsed < MIN_RECORDING_DURATION) {
                             if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
-                            coughRecordingTimeout = setTimeout(() => saveCoughRecording(coughScore), MIN_RECORDING_DURATION - elapsed);
+                            coughRecordingTimeout = setTimeout(
+                                () => saveDetectionRecording('cough', coughScore), 
+                                MIN_RECORDING_DURATION - elapsed
+                            );
+                        }
+                    }
+                }
+                
+                if (snoreScore >= detectionThreshold) {
+                    addSessionPrediction({ 
+                        type: 'snore',
+                        score: snoreScore, 
+                        timestamp: Date.now(), 
+                        recipient_id: selectedRecipientId, 
+                        recipient_name: selectedRecipientName 
+                    });
+                    
+                    if (!snoreDetectionActive) {
+                        snoreDetectionActive = true;
+                        snoreStartTime = Date.now();
+                        snoreCount++;
+                        document.getElementById('snoreCount').textContent = snoreCount;
+                        statusEl.textContent = `😴 Snore #${snoreCount} detected! (${snoreScore.toFixed(2)}) - Recording…`;
+                        statusEl.style.color = '#a78bfa';
+                        if (snoreRecordingTimeout) clearTimeout(snoreRecordingTimeout);
+                        snoreRecordingTimeout = setTimeout(() => saveDetectionRecording('snore', snoreScore), MIN_RECORDING_DURATION);
+                    } else {
+                        const elapsed = Date.now() - snoreStartTime;
+                        if (elapsed < MIN_RECORDING_DURATION) {
+                            if (snoreRecordingTimeout) clearTimeout(snoreRecordingTimeout);
+                            snoreRecordingTimeout = setTimeout(
+                                () => saveDetectionRecording('snore', snoreScore), 
+                                MIN_RECORDING_DURATION - elapsed
+                            );
                         }
                     }
                 }
@@ -1049,7 +1104,7 @@
                 probabilityThreshold: 0.5
             });
 
-            statusEl.textContent = 'Listening for coughs…';
+            statusEl.textContent = 'Listening for coughs and snores…';
         } catch (err) {
             console.error('Error init audio:', err);
             statusEl.textContent = `Error: ${err.message}`;
@@ -1089,89 +1144,58 @@
         silentGainNode.connect(audioContext.destination);
     }
 
-    async function saveCoughRecording(detectedScore) {
-        if (!coughDetectionActive || pcmBuffer.length === 0) {
-            coughDetectionActive = false;
-            return;
-        }
-
-        const numChannels = pcmBuffer[0].channels.length;
-        const totalSamples = pcmBufferLength;
-        const sampleRate = audioContext.sampleRate;
-        const channelData = Array.from({ length: numChannels }, () => new Float32Array(totalSamples));
-        let offset = 0;
-        pcmBuffer.forEach(chunk => {
-            for (let ch = 0; ch < numChannels; ch++) {
-                channelData[ch].set(chunk.channels[ch], offset);
-            }
-            offset += chunk.length;
-        });
-
-        const audioBufferOut = audioContext.createBuffer(numChannels, totalSamples, sampleRate);
-        for (let ch = 0; ch < numChannels; ch++) {
-            audioBufferOut.getChannelData(ch).set(channelData[ch]);
-        }
-
-        const wavData = encodeWAV(audioBufferOut);
-        const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+    async function saveDetectionRecording(type, score) {
+        if (!pcmBuffer.length) return;
+        
+        const wavBlob = encodeWAV(pcmBuffer, 1, audioContext.sampleRate);
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `cough_${coughCount}_${timestamp}.wav`;
-        const downloadUrl = URL.createObjectURL(wavBlob);
-        if (AUTO_DOWNLOAD) {
-            triggerDownload(downloadUrl, filename);
+        const filename = `${type}_${type === 'cough' ? coughCount : snoreCount}_${timestamp}.wav`;
+        
+        // Upload to server
+        const formData = new FormData();
+        formData.append('file', wavBlob, filename);
+        formData.append('type', type);
+        formData.append('score', score);
+        if (selectedRecipientId) {
+            formData.append('care_recipient_id', selectedRecipientId);
         }
-        showRecording(filename, downloadUrl, 'audio/wav');
-
+        
         try {
-            const serverRec = await uploadRecording(wavBlob, filename, selectedRecipientId);
-            if (serverRec && serverRec.recording && serverRec.recording.id) {
-                await fetchAndRenderRecordings();
+            const response = await fetch(`${API_BASE}/recordings/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to upload recording');
             }
-        } catch (err) {
-            console.error('Upload failed', err);
-        }
-
-        coughDetectionActive = false;
-        coughStartTime = null;
-        statusEl.textContent = 'Listening for coughs…';
-        statusEl.style.color = '#38bdf8';
-    }
-
-    function encodeWAV(audioBuffer) {
-        const numChannels = audioBuffer.numberOfChannels;
-        const sampleRate = audioBuffer.sampleRate;
-        const bitDepth = 16;
-        const bytesPerSample = bitDepth / 8;
-        const numFrames = audioBuffer.length;
-        const dataSize = numFrames * numChannels * bytesPerSample;
-        const buffer = new ArrayBuffer(44 + dataSize);
-        const view = new DataView(buffer);
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
-        }
-        writeString(view, 0, 'RIFF');
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(view, 8, 'WAVE');
-        writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
-        view.setUint16(32, numChannels * bytesPerSample, true);
-        view.setUint16(34, bitDepth, true);
-        writeString(view, 36, 'data');
-        view.setUint32(40, dataSize, true);
-        let offset = 44;
-        for (let frame = 0; frame < numFrames; frame++) {
-            for (let channel = 0; channel < numChannels; channel++) {
-                let sample = audioBuffer.getChannelData(channel)[frame];
-                sample = Math.max(-1, Math.min(1, sample));
-                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-                offset += 2;
+            
+            const data = await response.json();
+            console.log(`${type} recording saved:`, data);
+            
+            // Update UI
+            const url = URL.createObjectURL(wavBlob);
+            showRecording(filename, url);
+            
+        } catch (error) {
+            console.error(`Error saving ${type} recording:`, error);
+        } finally {
+            // Reset state for the specific type
+            if (type === 'cough') {
+                coughDetectionActive = false;
+            } else if (type === 'snore') {
+                snoreDetectionActive = false;
+            }
+            
+            // Only clear buffers if neither detection is active
+            if (!coughDetectionActive && !snoreDetectionActive) {
+                pcmBuffer = [];
+                pcmBufferLength = 0;
+                statusEl.textContent = 'Listening…';
+                statusEl.style.color = '#38bdf8';
             }
         }
-        return buffer;
     }
 
     function startWaveAnimation() {
@@ -1205,14 +1229,21 @@
         if (processorNode) { processorNode.disconnect(); processorNode.onaudioprocess = null; processorNode = null; }
         if (silentGainNode) { silentGainNode.disconnect(); silentGainNode = null; }
         if (coughRecordingTimeout) clearTimeout(coughRecordingTimeout);
+        if (snoreRecordingTimeout) clearTimeout(snoreRecordingTimeout);
         if (audioStream) audioStream.getTracks().forEach(track => track.stop());
         if (audioContext && audioContext.state !== 'closed') audioContext.close();
-        pcmBuffer = []; pcmBufferLength = 0; coughDetectionActive = false;
+        pcmBuffer = []; 
+        pcmBufferLength = 0; 
+        coughDetectionActive = false;
+        snoreDetectionActive = false;
         statusEl.textContent = 'Stopped';
         statusEl.style.color = '#fb7185';
     }
 
     function addSessionPrediction(pred) {
+        const emoji = pred.type === 'cough' ? '🤧' : pred.type === 'snore' ? '😴' : '🔊';
+        pred.displayText = `${emoji} ${(pred.score * 100).toFixed(0)}% ${pred.type}${pred.recipient_name ? ` (${pred.recipient_name})` : ''}`;
+        
         sessionPredictions.unshift(pred);
         if (sessionPredictions.length > 200) sessionPredictions.pop();
         renderSessionPredictions();
@@ -1225,12 +1256,59 @@
             el.innerHTML = '<p class="muted">No predictions yet in this session.</p>';
             return;
         }
-        sessionPredictions.slice(0, 50).forEach(pred => {
-            const item = document.createElement('div');
-            item.className = 'session-item';
-            const time = new Date(pred.timestamp).toLocaleTimeString();
-            item.innerHTML = `<strong>${(pred.score || 0).toFixed(2)}</strong><span class="muted">${time}${pred.recipient_name ? ' • ' + pred.recipient_name : ''}</span>`;
-            el.appendChild(item);
+        
+        const groupedPredictions = {
+            cough: [],
+            snore: [],
+            other: []
+        };
+        
+        sessionPredictions.slice(0, 100).forEach(pred => {
+            const type = pred.type || 'other';
+            if (groupedPredictions[type] !== undefined) {
+                groupedPredictions[type].push(pred);
+            } else {
+                groupedPredictions.other.push(pred);
+            }
+        });
+        
+        const sections = [
+            { type: 'cough', title: '🤧 Coughs', predictions: groupedPredictions.cough },
+            { type: 'snore', title: '😴 Snores', predictions: groupedPredictions.snore },
+            { type: 'other', title: '🔊 Other Sounds', predictions: groupedPredictions.other }
+        ];
+        
+        sections.forEach(section => {
+            if (section.predictions.length === 0) return;
+            
+            const sectionEl = document.createElement('div');
+            sectionEl.className = 'prediction-section';
+            sectionEl.innerHTML = `<h4 style="margin: 16px 0 8px; color: var(--accent);">${section.title} (${section.predictions.length})</h4>`;
+            
+            section.predictions.slice(0, 10).forEach(pred => {
+                const item = document.createElement('div');
+                item.className = 'session-item';
+                const time = new Date(pred.timestamp).toLocaleTimeString();
+                const score = (pred.score * 100).toFixed(0);
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; width: 100%;">
+                        <span>${time}</span>
+                        <span>${score}% confidence</span>
+                    </div>
+                `;
+                sectionEl.appendChild(item);
+            });
+            
+            if (section.predictions.length > 10) {
+                const moreEl = document.createElement('div');
+                moreEl.className = 'muted';
+                moreEl.style.textAlign = 'center'; 
+                moreEl.style.padding = '8px 0';
+                moreEl.textContent = `+${section.predictions.length - 10} more`;
+                sectionEl.appendChild(moreEl);
+            }
+            
+            el.appendChild(sectionEl);
         });
     }
 
@@ -1238,7 +1316,9 @@
         const form = new FormData();
         const file = new File([blob], filename, { type: 'audio/wav' });
         form.append('file', file);
-        if (care_recipient_id) form.append('care_recipient_id', care_recipient_id);
+        if (care_recipient_id) {
+            form.append('care_recipient_id', care_recipient_id);
+        }
         const res = await fetch(API_BASE + '/recordings/upload', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token },

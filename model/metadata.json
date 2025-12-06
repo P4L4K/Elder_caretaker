@@ -1,1 +1,1 @@
-{"tfjsSpeechCommandsVersion":"0.4.0","modelName":"TMv2","timeStamp":"2025-11-20T16:10:15.790Z","wordLabels":["Background Noise","COUGH"]}
+{"tfjsSpeechCommandsVersion":"0.4.0","modelName":"TMv2","timeStamp":"2025-11-24T20:57:41.022Z","wordLabels":["Background Noise","cough","snore"]}

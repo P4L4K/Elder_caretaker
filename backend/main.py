@@ -44,6 +44,16 @@ med_reports_tables.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CareTaker AI Backend")
 
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
 # Mount the model directory to be served at /api/model
 app.mount("/api/model", StaticFiles(directory="../model"), name="model")
 
@@ -96,20 +106,11 @@ if not os.path.exists(static_path):
     except Exception:
         pass
 app.mount("/static", StaticFiles(directory=static_path), name="static")
+
 # Also mount the repository-level `model` directory (serves model.json, metadata.json, weights.bin)
 model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'sdk', 'model'))
 if os.path.exists(model_dir):
     app.mount("/model", StaticFiles(directory=model_dir), name="model")
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
 
 @app.get("/")
 async def root():
@@ -449,12 +450,24 @@ async def get_current_weather():
     
     try:
         data = weather_model.fetch_data()
-        current = data['current']
+        if not data:
+            return {
+                "error": "Failed to fetch weather data. Please try again later.",
+                "status": "error"
+            }
+            
+        current = data.get('current')
+        if not current:
+            return {
+                "error": "Invalid weather data received",
+                "status": "error"
+            }
+            
         return {
-            "temperature": current['temp_c'],
-            "humidity": current['humidity'],
+            "temperature": current.get('temp_c', 'N/A'),
+            "humidity": current.get('humidity', 'N/A'),
             "aqi": current.get('air_quality', {}).get('us-epa-index', 0),
-            "condition": current['condition']['text'],
+            "condition": current.get('condition', {}).get('text', 'Unknown'),
             "location": weather_model.city,
             "timestamp": datetime.utcnow().isoformat(),
             "status": "success"
