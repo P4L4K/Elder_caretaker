@@ -57,7 +57,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
 
         console.log('Sending registration data:', formData);
         const API_BASE = 'http://127.0.0.1:8000';
-        const response = await fetch(API_BASE + '/signup', {
+        const response = await fetch(API_BASE + '/api/signup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -99,39 +99,46 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
             });
         }
 
-        for (let i = 0; i < recipientDivsAfter.length && i < createdRecipients.length; i++) {
-            const div = recipientDivsAfter[i];
-            const fileInput = div.querySelector('[name="recipient_report"]');
-            if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                const file = fileInput.files[0];
-                try {
-                    console.log('Preparing base64 upload for recipient', createdRecipients[i].id, 'file=', file.name, 'tokenPresent=', !!token);
-                    const b64 = await fileToBase64(file);
-                    const payload = { filename: file.name, mime_type: file.type || 'application/octet-stream', b64 };
-                    const uploadResp = await fetch(`${API_BASE}/recipients/${createdRecipients[i].id}/reports/base64`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': 'Bearer ' + token,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    console.log('Upload response status:', uploadResp.status);
-                    const uploadJson = await uploadResp.json().catch(() => null);
-                    console.log('Upload response json:', uploadJson);
-                    if (!uploadResp.ok) {
-                        console.warn('Failed to upload report for recipient', createdRecipients[i].id, uploadJson || await uploadResp.text());
-                    } else {
-                        console.log('Uploaded report for recipient', createdRecipients[i].id);
-                    }
-                } catch (ue) {
-                    console.error('Upload error:', ue);
+       // Replace the entire file upload block (lines 102-131) with this:
+for (let i = 0; i < recipientDivsAfter.length && i < createdRecipients.length; i++) {
+    const div = recipientDivsAfter[i];
+    const fileInput = div.querySelector('[name="recipient_report"]');
+    
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const uploadResp = await fetch(
+                `${API_BASE}/api/recipients/${createdRecipients[i].id}/reports`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: formData
                 }
+            );
+
+            if (!uploadResp.ok) {
+                const errorData = await uploadResp.json().catch(() => ({}));
+                console.error('Upload failed:', uploadResp.status, errorData);
+                throw new Error(`Failed to upload report: ${errorData.detail || 'Unknown error'}`);
             }
+            
+            const result = await uploadResp.json();
+            console.log('Upload successful:', result);
+            
+        } catch (error) {
+            console.error('Upload error:', error);
+            throw new Error(`Failed to upload medical report: ${error.message}`);
         }
+    }
+}
 
         alert('Registration successful! You are now logged in. Redirecting to dashboard.');
-        window.location.href = 'dashboard.html';
+        window.location.href = 'profile.html';
     } catch (error) {
         console.error('Error details:', error);
         
